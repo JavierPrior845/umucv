@@ -1,0 +1,7 @@
+path: .      # Directorio raiz del dataset (relativo al yaml)
+train: train/images
+val: val/images
+
+# Classes
+names:
+  0: boca
