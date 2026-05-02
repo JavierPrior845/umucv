@@ -5,9 +5,6 @@ import numpy as np
 import os
 from umucv.stream import autoStream
 
-# Variables globales que atacan a las trackbars.
-# Inicializamos a que estamos a una altura H=15 (por ej. decimetros -> 1.5m)
-# Y a una distancia de la pared Z=40 (decimetros -> 4.0m)
 params = {
     'H': 15,
     'Z': 40,
@@ -16,7 +13,6 @@ params = {
 
 def update_val(name):
     def f(val):
-        # Evitar ceros para no dividir por cero en Z
         if val == 0 and name == 'Z':
             val = 1
         params[name] = val
@@ -68,16 +64,9 @@ for key, frame in autoStream():
     base_y = int(fy * (H_real / Z_real) + cy)
     cv.line(frame, (0, base_y), (w_img, base_y), (0, 0, 255), 3)
 
-    # --- Dibujar cuadrícula en la "pared" (Plano Z perpendicular a la cámara) ---
-    # El eje X va de izquierda a derecha.
-    # El eje Y va de arriba a abajo. (Suelo es Y = H_real)
-    
     # Líneas verticales sobre el plano a distancia Z_real.
-    # Recorremos la habitación en X buscando valores múltiples del paso (step).
     X_min, X_max = -50, 50 # Ancho de 5 metros a cada lado de la cámara.
     for x_real in range(X_min, X_max + step, step):
-        # Punto inicial de la línea: Arriba de la habitación, p.ej. techo (Y = -H_real)
-        # Punto final de la línea: Suelo (Y = H_real)
         y_img_suelo = int(fy * (H_real / Z_real) + cy)
         y_img_techo = int(fy * (-H_real / Z_real) + cy)
         
@@ -101,7 +90,7 @@ for key, frame in autoStream():
 
     cv.imshow('Grid', frame)
 
-    if key == 27: # Esc para salir
+    if key == 27:
         break
 
 cv.destroyAllWindows()
