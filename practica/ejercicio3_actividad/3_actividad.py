@@ -134,7 +134,6 @@ for key, frame in autoStream():
                 for f in frame_buffer:
                     video_writer.write(f)
 
-    # Si estamos grabando, procesamos frames con YOLO
     if recording:
         results = model(frame, verbose=False)
         people_boxes = []
@@ -155,7 +154,6 @@ for key, frame in autoStream():
                         if label == 'person':
                             people_boxes.append(coords)
                         
-                        # Dibujar en el display para feedback
                         cv.rectangle(display_frame, (coords[0], coords[1]), (coords[2], coords[3]), (0, 255, 0), 2)
                         putText(display_frame, f"{label} {conf:.2f}", (coords[0], coords[1]-10))
 
@@ -181,7 +179,6 @@ for key, frame in autoStream():
                 send_telegram_notification(msg, snap_path)
             else:
                 print("Movimiento detectado pero no era ningún objeto de interés.")
-                # Opcional: borrar video si no es interesante para ahorrar espacio
                 # os.remove(video_filename)
 
     cv.imshow("Vigilancia", display_frame)

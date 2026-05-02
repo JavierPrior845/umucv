@@ -89,7 +89,6 @@ class MetodoManos(MetodoClasificacion):
         rgb = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         results = self.hands.process(rgb)
         if results.multi_hand_landmarks:
-            # Tomamos la primera mano
             landmarks = results.multi_hand_landmarks[0].landmark
             return np.array([[lm.x, lm.y, lm.z] for lm in landmarks])
         return None
@@ -114,7 +113,24 @@ class MetodoManos(MetodoClasificacion):
     def comparar(self, lm_frame, lm_modelo):
         if lm_frame is None or lm_modelo is None:
             return float('inf')
-        # Distancia Euclídea entre conjuntos de puntos ya normalizados
-        # (Es una forma simplificada de Procrustes sin rotación completa, 
-        # pero MediaPipe ya entrega manos bastante alineadas en escala/orientación)
-        return np.linalg.norm(lm_frame - lm_modelo)
+            
+        # --- Análisis de Procrustes (Alineación de Rotación) ---
+        # Calculamos la matriz de covarianza cruzada para encontrar la rotación óptima
+        H = lm_frame.T @ lm_modelo
+        
+        # Descomposición en Valores Singulares (SVD)
+        U, S, Vt = np.linalg.svd(H)
+        
+        # Obtenemos la matriz de rotación R
+        R = U @ Vt
+        
+        # Evitamos reflexiones matemáticas (espejos)
+        if np.linalg.det(R) < 0:
+            Vt[-1, :] *= -1
+            R = U @ Vt
+            
+        # Rotamos el esqueleto actual para que "encaje" en el ángulo del modelo original
+        lm_frame_alineado = lm_frame @ R
+        
+        # Ahora comparamos la distancia pura, sin el sesgo del ángulo
+        return np.linalg.norm(lm_frame_alineado - lm_modelo)

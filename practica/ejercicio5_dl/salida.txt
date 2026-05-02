@@ -1,0 +1,72 @@
+optimizer: AdamW(lr=0.002, momentum=0.9) with parameter groups 81 weight(decay=0.0), 88 weight(decay=0.0005), 87 bias(decay=0.0)
+Plotting labels to /home/usuario/.pyenv/runs/detect/train4/labels.jpg... 
+Image sizes 640 train, 640 val
+Using 0 dataloader workers
+Logging results to /home/usuario/.pyenv/runs/detect/train4
+Starting training for 10 epochs...
+Closing dataloader mosaic
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       1/10         0G      1.542      3.637      1.829         10        640: 100% ━━━━━━━━━━━━ 2/2 4.5s/it 9.1s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 4.4it/s 0.2s
+                   all          4          4    0.00333          1      0.411      0.316
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       2/10         0G       1.39      3.539      1.745         11        640: 100% ━━━━━━━━━━━━ 2/2 4.2s/it 8.5s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.2it/s 0.2s
+                   all          4          4    0.00333          1      0.522      0.358
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       3/10         0G      1.232      3.442      1.463         11        640: 100% ━━━━━━━━━━━━ 2/2 4.2s/it 8.3s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 4.7it/s 0.2s
+                   all          4          4    0.00333          1      0.745      0.554
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       4/10         0G       1.07      3.248      1.367         10        640: 100% ━━━━━━━━━━━━ 2/2 3.8s/it 7.6s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.3it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.777
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       5/10         0G     0.9761      3.095      1.238         12        640: 100% ━━━━━━━━━━━━ 2/2 3.9s/it 7.7s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.2it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.715
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       6/10         0G     0.9576      2.911      1.209         10        640: 100% ━━━━━━━━━━━━ 2/2 3.8s/it 7.6s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.1it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.777
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       7/10         0G      0.886      2.733      1.198         10        640: 100% ━━━━━━━━━━━━ 2/2 3.8s/it 7.6s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.2it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.777
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       8/10         0G     0.8898      2.582      1.184         11        640: 100% ━━━━━━━━━━━━ 2/2 3.8s/it 7.5s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.2it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.783
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+       9/10         0G     0.9739      2.511      1.235         11        640: 100% ━━━━━━━━━━━━ 2/2 3.8s/it 7.5s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.2it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.783
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss  Instances       Size
+      10/10         0G      0.949      2.491      1.216          9        640: 100% ━━━━━━━━━━━━ 2/2 3.7s/it 7.5s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 5.0it/s 0.2s
+                   all          4          4    0.00333          1      0.995      0.783
+
+10 epochs completed in 0.023 hours.
+Optimizer stripped from /home/usuario/.pyenv/runs/detect/train4/weights/last.pt, 5.4MB
+Optimizer stripped from /home/usuario/.pyenv/runs/detect/train4/weights/best.pt, 5.4MB
+
+Validating /home/usuario/.pyenv/runs/detect/train4/weights/best.pt...
+Ultralytics 8.4.33 🚀 Python-3.11.14 torch-2.11.0+cu130 CPU (AMD Ryzen 7 5700U with Radeon Graphics)
+YOLO11n summary (fused): 101 layers, 2,582,347 parameters, 0 gradients, 6.3 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 2.3it/s 0.4s
+                   all          4          4    0.00333          1      0.995      0.821
+Speed: 1.2ms preprocess, 94.1ms inference, 0.0ms loss, 8.9ms postprocess per image
+Results saved to /home/usuario/.pyenv/runs/detect/train4
+
+¡Entrenamiento completado!
+El mejor modelo se ha guardado en: /home/usuario/.pyenv/runs/detect/train4/weights/best.pt

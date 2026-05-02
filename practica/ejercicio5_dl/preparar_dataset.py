@@ -3,81 +3,110 @@
 import cv2 as cv
 import numpy as np
 import os
-import mediapipe as mp
 from umucv.stream import autoStream
-from umucv.util import putText
+from umucv.util import ROI, putText
 
 # --- CONFIGURACIÓN ---
-# Carpeta de salida (asegurado que existen por el script principal)
 DATA_DIR = "train"
 IMG_DIR = os.path.join(DATA_DIR, "images")
 LBL_DIR = os.path.join(DATA_DIR, "labels")
 os.makedirs(IMG_DIR, exist_ok=True)
 os.makedirs(LBL_DIR, exist_ok=True)
 
-# MediaPipe Face Mesh para auto-etiquetado
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(
-    static_image_mode=False,
-    max_num_faces=1,
-    min_detection_confidence=0.5)
+# Manejador del ratón para dibujar cajas
+region = ROI("Etiquetador Manual")
 
-# Índices de la boca en FaceMesh (algunos puntos clave del contorno)
-MOUTH_INDICES = [0, 13, 14, 17, 37, 39, 40, 61, 78, 80, 81, 82, 84, 87, 88, 91, 95, 146, 178, 181, 191, 267, 269, 270, 291, 308, 310, 311, 312, 314, 317, 318, 321, 324, 325, 375, 402, 405, 415]
+print("\n--- ETIQUETADOR MANUAL DE YOLO ---")
+print("1. El vídeo empezará a reproducirse.")
+print("2. Pulsa la BARRA ESPACIADORA para pausar el vídeo cuando veas el objeto.")
+print("3. Usa el raton para arrastrar y dibujar un cuadrado sobre el objeto.")
+print("4. Pulsa 's' para Guardar la imagen y la etiqueta.")
+print("5. Pulsa 'q' o ESC para salir.")
 
-N = 0
-print("\nPREPARADOR DE DATASET: DETECTOR DE BOCA")
-print("1. En cada segundo se captura una imagen automáticamente.")
-print("2. Mueve la cabeza, abre y cierra la boca para tener variedad.")
-print("3. Pulsa 'ESC' para terminar.")
+generador_stream = autoStream()
 
-for k, (key, frame) in enumerate(autoStream()):
-    h, w = frame.shape[:2]
+try:
+    key_stream, frame = next(generador_stream)
+except StopIteration:
+    print("Vaya, no se ha podido abrir la cámara o vídeo.")
+    exit()
+
+paused = False
+import glob
+existing_files = glob.glob(os.path.join(IMG_DIR, "obj_*.jpg"))
+if existing_files:
+    indices = [int(os.path.basename(f).split('_')[1].split('.')[0]) for f in existing_files if f.split('_')[1].split('.')[0].isdigit()]
+    N = max(indices) if indices else 0
+else:
+    N = 0
+
+while True:
     display_frame = frame.copy()
-    
-    # Procesar con MediaPipe
-    rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb)
-    
-    if results.multi_face_landmarks:
-        for face_landmarks in results.multi_face_landmarks:
-            # Extraer coordenadas de los puntos de la boca
-            coords = []
-            for idx in MOUTH_INDICES:
-                lm = face_landmarks.landmark[idx]
-                coords.append((int(lm.x * w), int(lm.y * h)))
-            
-            coords = np.array(coords)
-            # Calcular Bounding Box (YOLO format)
-            x0, y0 = np.min(coords, axis=0)
-            x1, y1 = np.max(coords, axis=0)
-            
-            # Dibujar para feedback
-            cv.rectangle(display_frame, (x0, y0), (x1, y1), (0, 255, 0), 1)
-            
-            # Guardar cada 20 frames (aprox 1 vez por segundo)
-            if k % 20 == 0:
-                N += 1
-                img_path = os.path.join(IMG_DIR, f"{N:04d}.jpg")
-                lbl_path = os.path.join(LBL_DIR, f"{N:04d}.txt")
-                
-                # Imagen
-                cv.imwrite(img_path, frame)
-                
-                # Etiqueta YOLO: <class_id> <x_center> <y_center> <width> <height> (normalizados 0-1)
-                xc = (x0 + x1) / 2 / w
-                yc = (y0 + y1) / 2 / h
-                bw = (x1 - x0) / w
-                bh = (y1 - y0) / h
-                
-                with open(lbl_path, "w") as f:
-                    f.write(f"0 {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}\n")
-                
-                print(f"[{N}] Imagen guardada en {img_path}")
+    h, w = frame.shape[:2]
 
-    putText(display_frame, f"Capturadas: {N}", (10, 30))
-    cv.imshow("Captura de Dataset", display_frame)
-    if key == 27: break
+    # Dibujar la caja interactiva
+    if region.roi:
+        [x1, y1, x2, y2] = region.roi
+        # Asegurar coordenadas bien ordenadas (arriba-izq, abajo-der)
+        x_min, x_max = min(x1, x2), max(x1, x2)
+        y_min, y_max = min(y1, y2), max(y1, y2)
+        
+        cv.rectangle(display_frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
 
-print(f"\nProceso terminado. Se han capturado {N} imágenes.")
-print("Ahora debes copiar al menos un par de ellas a la carpeta 'val/' para la validación.")
+    # UI Feedback
+    estado = "PAUSADO (Dibuja y pulsa 's' para guardar)" if paused else "REPRODUCIENDO (Pulsa ESPACIO para pausar)"
+    color_estado = (0, 0, 255) if paused else (0, 255, 0)
+    putText(display_frame, estado, (10, 30), color=color_estado, scale=1.5, div=2)
+    putText(display_frame, f"Guardadas: {N}   (Objetivo: ~40)", (10, 60))
+
+    cv.imshow("Etiquetador Manual", display_frame)
+    
+    # Procesar teclado
+    key = cv.waitKey(30) & 0xFF
+    
+    if key == 27 or key == ord('q'):
+        break
+    elif key == ord(' '):
+        paused = not paused
+    elif key == ord('s'):
+        if paused and region.roi:
+            # Calcular formatos YOLO
+            x_min, x_max = min(region.roi[0], region.roi[2]), max(region.roi[0], region.roi[2])
+            y_min, y_max = min(region.roi[1], region.roi[3]), max(region.roi[1], region.roi[3])
+            
+            x_center = ((x_min + x_max) / 2) / w
+            y_center = ((y_min + y_max) / 2) / h
+            box_w = (x_max - x_min) / w
+            box_h = (y_max - y_min) / h
+            
+            # Limitar a bounds entre 0 y 1 por si te pasas dibujando fuera del marco
+            x_center = max(0, min(1, x_center))
+            y_center = max(0, min(1, y_center))
+            box_w = max(0, min(1, box_w))
+            box_h = max(0, min(1, box_h))
+            
+            # Guardamos la imagen
+            N += 1
+            img_path = os.path.join(IMG_DIR, f"obj_{N:04d}.jpg")
+            lbl_path = os.path.join(LBL_DIR, f"obj_{N:04d}.txt")
+            
+            cv.imwrite(img_path, frame)
+            with open(lbl_path, "w") as f:
+                f.write(f"0 {x_center:.6f} {y_center:.6f} {box_w:.6f} {box_h:.6f}\n")
+            
+            print(f"[{N}] Creados {img_path} y {lbl_path}")
+            
+            # Reiniciar para seguir trabajando
+            region.roi = []
+            paused = False
+
+    # Avanzar el frame si no está pausado
+    if not paused:
+        try:
+            key_stream, frame = next(generador_stream)
+        except StopIteration:
+            # Si era un archivo de vídeo y se acabó, lo pausamos al final en vez de romper
+            paused = True
+
+print(f"\n¡Listo! Generaste {N} imágenes manualmente.")
+cv.destroyAllWindows()

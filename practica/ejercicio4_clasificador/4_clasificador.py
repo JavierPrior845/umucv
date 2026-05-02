@@ -27,7 +27,7 @@ def main():
 
     # 3. Cargar modelos existentes
     os.makedirs(args.models, exist_ok=True)
-    modelos_db = {} # nombre_archivo -> descriptor_precomputado
+    modelos_db = {}
 
     def cargar_modelos():
         modelos_db.clear()
@@ -81,7 +81,7 @@ def main():
 
         # D. Visualización
         h, w = frame.shape[:2]
-        # Umbrales heurísticos para mostrar texto de confianza (personalizables)
+        # Umbrales heurísticos para mostrar texto de confianza
         confianza_visual = ""
         if args.method == 'sift' and mejor_score < -15:
              confianza_visual = f" (Matches: {-mejor_score})"

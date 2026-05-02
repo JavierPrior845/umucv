@@ -5,7 +5,7 @@ import os
 
 # Configuración
 DATA_YAML = "data.yaml"
-EPOCHS = 100
+EPOCHS = 10
 IMG_SIZE = 640
 
 def main():

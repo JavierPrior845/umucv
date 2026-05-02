@@ -85,7 +85,6 @@ for key, frame in autoStream():
                 mejor_cd = (i, cx, cy)
                 
         if mejor_cd is not None:
-            # Encontrado!
             i, cx, cy = mejor_cd
             nuevos_vehiculos[vid] = (cx, cy)
             usados.add(i)
@@ -103,7 +102,6 @@ for key, frame in autoStream():
                 registro_eventos.append((time.time(), 'subida'))
                 cv.circle(frame, (cx, cy), 15, (0, 255, 0), -1)
 
-    # Convertir los centroides no asociados en nuevos vehículos
     for i, (cx, cy, w_box, h_box) in enumerate(centroides_actuales):
         if i not in usados:
             nuevos_vehiculos[siguiente_id] = (cx, cy)
@@ -112,14 +110,11 @@ for key, frame in autoStream():
     vehiculos_activos = nuevos_vehiculos
     
     # 7. Interfaz gráfica
-    # Dibujar la línea de conteo
     cv.line(frame, (0, LINE_Y), (w, LINE_Y), (255, 0, 0), 2)
     
-    # Texto de conteos
     cv.putText(frame, f"Bajada: {conteo_bajada}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
     cv.putText(frame, f"Subida: {conteo_subida}", (10, 70), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     
-    # Mostrar imágenes
     cv.imshow('Trafico', frame)
     cv.imshow('Mascara', fgmask)
     
@@ -131,7 +126,6 @@ cv.destroyAllWindows()
 # --- Generación de Gráficas ---
 if len(registro_eventos) > 0:
     print("Generando gráfica de tráfico...")
-    # Convertimos tiempos absolutos a relativos (segundos desde el inicio)
     t_inicial = registro_eventos[0][0]
     
     tiempos_bajada = [t - t_inicial for t, d in registro_eventos if d == 'bajada']
@@ -139,8 +133,7 @@ if len(registro_eventos) > 0:
     
     plt.figure(figsize=(10, 5))
     
-    # Histograma con bins de X segundos
-    BINS = max(1, int((time.time() - t_inicial) / 5)) # Un bin cada 5 segundos
+    BINS = max(1, int((time.time() - t_inicial) / 5))
     
     plt.hist(tiempos_bajada, bins=BINS, alpha=0.5, color='red', label='Bajada')
     plt.hist(tiempos_subida, bins=BINS, alpha=0.5, color='green', label='Subida')
