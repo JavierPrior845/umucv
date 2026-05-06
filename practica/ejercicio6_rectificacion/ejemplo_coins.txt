@@ -1,0 +1,9 @@
+# Archivo de calibración para rectificación
+# Formato: pixel_x pixel_y mundo_x mundo_y
+# (Estos son valores ilustrativos para servir de plantilla)
+# Coordenadas de imagen (píxeles) | Coordenadas reales (ej. en centímetros)
+
+200 150   0  0
+400 150  10  0
+400 350  10 10
+200 350   0 10
