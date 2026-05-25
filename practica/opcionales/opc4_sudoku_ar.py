@@ -35,12 +35,15 @@ def solve_sudoku(board):
                 return False
     return True
 
-# --- OCR Y PROCESAMIENTO ---
 def extract_digit(cell_img):
     """Limpia la celda y usa pytesseract para intentar extraer el número."""
-    # Extraer bordes
+    # Pre-suavizado vital para eliminar ruido del papel antes del umbral
     gray = cv.cvtColor(cell_img, cv.COLOR_BGR2GRAY)
-    _, thresh = cv.threshold(gray, 150, 255, cv.THRESH_BINARY_INV)
+    gray = cv.GaussianBlur(gray, (5, 5), 0)
+    
+    # MEJORA 1: Umbral adaptativo para evitar fallos por sombras en el papel
+    thresh = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                  cv.THRESH_BINARY_INV, 11, 2)
     
     # Encontrar el contorno del número
     contours, _ = cv.findContours(thresh, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
@@ -48,16 +51,32 @@ def extract_digit(cell_img):
         return 0
         
     c = max(contours, key=cv.contourArea)
-    if cv.contourArea(c) < 50:
+    if cv.contourArea(c) < 30:
         return 0 # Probablemente ruido o celda vacía
         
     x, y, w, h = cv.boundingRect(c)
-    # Recortar el número con un poco de margen para Tesseract
-    roi = thresh[max(0, y-5):y+h+5, max(0, x-5):x+w+5]
+    
+    # Filtrar contornos con proporciones extremas (suelen ser restos de líneas de la cuadrícula)
+    if w > 1.5 * h or h > 4 * w:
+        return 0
+
+    # Recortar el número de forma ajustada
+    roi = thresh[y:y+h, x:x+w]
     if roi.size == 0: return 0
     
-    # Tesseract requiere texto negro sobre blanco para funcionar bien
+    # Tesseract requiere texto negro sobre blanco
     roi_inv = cv.bitwise_not(roi)
+    
+    # MEJORA 2: Escalar la imagen x3. Tesseract es muy malo con letras pequeñas
+    roi_inv = cv.resize(roi_inv, None, fx=3, fy=3, interpolation=cv.INTER_CUBIC)
+    
+    # MEJORA EXTRA: Tesseract falla estrepitosamente si el caracter toca los bordes
+    # Añadimos un margen blanco ("quiet zone") gigante alrededor del número
+    roi_inv = cv.copyMakeBorder(roi_inv, 30, 30, 30, 30, cv.BORDER_CONSTANT, value=255)
+    
+    # MEJORA 3: En vez de Apertura Morfológica (que puede romper los lazos del 8 y el 9),
+    # aplicamos un leve desenfoque para alisar los píxeles dentados del escalado
+    roi_inv = cv.GaussianBlur(roi_inv, (3, 3), 0)
     
     # --psm 10: tratar la imagen como un solo caracter. Whitelist: 1-9
     custom_config = r'--oem 3 --psm 10 -c tessedit_char_whitelist=123456789'
@@ -70,6 +89,7 @@ def extract_digit(cell_img):
     except:
         pass
     return 0
+
 
 def ordenar_puntos(pts):
     """Ordena 4 puntos en [Top-Left, Top-Right, Bottom-Right, Bottom-Left]"""
@@ -142,8 +162,8 @@ for key, frame in autoStream():
         
         for r in range(9):
             for c in range(9):
-                # Extraemos cada celda quitándole 5 píxeles de margen (borde de la rejilla)
-                celda = warp[r*step+5:(r+1)*step-5, c*step+5:(c+1)*step-5]
+                # Extraemos cada celda quitándole 8 píxeles de margen (borde de la rejilla grueso)
+                celda = warp[r*step+8:(r+1)*step-8, c*step+8:(c+1)*step-8]
                 num = extract_digit(celda)
                 sudoku_board[r][c] = num
                 

@@ -1,0 +1,1009 @@
+\documentclass[12pt,a4paper]{article}
+
+% ------------------- PAQUETES BÁSICOS ----------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{margin=3cm}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{float}
+
+% “Contents” → “Índice”
+\addto\captionsspanish{\renewcommand{\contentsname}{Índice}}
+
+% ------------------- PORTADA -------------------------------------------
+\begin{document}
+\begin{titlepage}
+    \centering
+    
+    {\scshape\LARGE VISIÓN ARTIFICIAL\par}\vspace{1cm}
+    \includegraphics[width=0.75\textwidth]{imagenes/logoumu.png}\par\vspace{1cm}
+    {\scshape\Large DOCUMENTACIÓN\par}\vfill
+
+    \textbf{Autor:} \\
+    Javier Prior Gómez\par
+    \textbf{Curso:} 2025–2026\par
+    \textbf{Convocatoria:} Mayo 2026\par\vfill
+
+\end{titlepage}
+
+% ------------------- ÍNDICE --------------------------------------------
+\tableofcontents
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Introducción}
+% -----------------------------------------------------------------------
+En este documento se recoge la explicación de como se han resuelto los ejercicios correspondientes a la practica de la asignatura de visión artificial.
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Ejercicio 1: Calibración}
+% -----------------------------------------------------------------------
+\subsection{Calibración de la cámara}
+Comenzamos calibrando la cámara usando las instrucciones del README, para ello comenzando obteniendo las imagenes del tablero de ajedrez (situadas en el directorio ejercicio1\_calibracion/fotos\_calibracion), desde distintas distancias y angulos, esto se realizó usando el script code/stream.py, y guardando pulsando la tecla s.
+
+Una vez teniamos una cantidad de imagenes suficientes ejecutamos el calibrador (calibrate.py), esto calcula la matriz intrínseca K de la cámara, el error de aproximación (RMS) y la distorsión. Obtenemos: 
+\begin{itemize}
+    \item \textbf{RMS:} \texttt{0.369}.
+    \item \textbf{Matriz de cámara ($K$):}
+    \[
+    K = \begin{bmatrix}
+    632. & 0. & 329. \\
+    0. & 632. & 229. \\
+    0. & 0. & 1.
+    \end{bmatrix}
+    \]
+\end{itemize}
+ De esto extraemos que la distancia focal es $f_x = f_y \approx 632$, y el centro óptico es $(c_x, c_y) \approx (329, 229)$. La resolución de la cámara es de $640 \times 480$.
+
+ \subsection{Cálculo de FOV}
+ El Campo de Visión (FOV) define la extensión del mundo observable que el sensor de la cámara puede capturar a través de su óptica.
+
+Para calcular el ángulo de visión, se asume un triángulo isósceles donde la base es la dimensión del sensor ($d$) y la altura es la distancia focal ($f$). La fórmula genérica para calcular el FOV en cualquier eje es:
+
+\begin{equation}
+\text{FOV} = 2 \cdot \arctan\left(\frac{d}{2f}\right)
+\end{equation}
+
+Donde:
+\begin{itemize}
+    \item \textbf{$d$}: Dimensión del sensor en una dirección específica (ancho o alto).
+    \item \textbf{$f$}: Distancia focal efectiva.
+\end{itemize}
+
+\subsubsection{Cálculo aplicado al sistema}
+
+Utilizando la distancia focal obtenida en la calibración ($f \approx 632$) y la resolución de $640 \times 480$ píxeles, procedemos a calcular los ángulos horizontal y vertical:
+
+\begin{itemize}
+    \item \textbf{FOV Horizontal ($FOV_x$):}
+    Utilizando el ancho de la imagen ($W = 640$):
+    \[
+    FOV_x = 2 \cdot \arctan\left(\frac{640}{2 \cdot 632}\right) = 2 \cdot \arctan(0.506) \approx 0.938 \text{ rad} \approx 53.7^\circ
+    \]
+
+    \item \textbf{FOV Vertical ($FOV_y$):}
+    Utilizando el alto de la imagen ($H = 480$):
+    \[
+    FOV_y = 2 \cdot \arctan\left(\frac{480}{2 \cdot 632}\right) = 2 \cdot \arctan(0.379) \approx 0.725 \text{ rad} \approx 41.5^\circ
+    \]
+\end{itemize}
+
+\subsection{Análisis de los Coeficientes de Distorsión de la Lente}
+El modelo de cámara \textit{pinhole} puro asume una proyección lineal perfecta. Sin embargo, las lentes físicas reales introducen desviaciones geométricas debido a imperfecciones ópticas. Estas desviaciones se corrigen modelando la distorsión radial y tangencial mediante un vector de parámetros.
+
+Durante la calibración del sistema, el script de calibración obtuvo los siguientes coeficientes de distorsión para nuestra cámara:
+\begin{itemize}
+    \item \textbf{Coeficientes Radiales ($k_1, k_2, k_3$):} $k_1 \approx 0.0754$, $k_2 \approx -0.5880$, $k_3 \approx 1.2790$.
+    \item \textbf{Coeficientes Tangenciales ($p_1, p_2$):} $p_1 \approx -0.00016$, $p_2 \approx 0.00299$.
+\end{itemize}
+
+La distorsión radial modela la curvatura de las líneas rectas, volviéndose más pronunciada cerca de los bordes de la imagen. Se modela mediante la relación de expansión polinomial respecto al radio al centro óptico ($r^2 = x^2 + y^2$):
+\begin{equation}
+    x_{\text{corregido}} = x(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)
+\end{equation}
+\begin{equation}
+    y_{\text{corregido}} = y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)
+\end{equation}
+
+El signo positivo de $k_1$ y negativo de $k_2$ refleja una leve distorsión en barril compensada en la periferia extrema. La distorsión tangencial ($p_1, p_2$) se debe a un desfase de paralelismo entre la lente y el plano del sensor, afectando a la imagen mediante descentrados asimétricos:
+\begin{equation}
+    x_{\text{corregido\_tang}} = x_{\text{corregido}} + [2p_1 xy + p_2(r^2 + 2x^2)]
+\end{equation}
+\begin{equation}
+    y_{\text{corregido\_tang}} = y_{\text{corregido}} + [p_1(r^2 + 2y^2) + 2p_2 xy]
+\end{equation}
+
+Tener en cuenta estos coeficientes permite a las funciones de OpenCV deshacer estas distorsiones geométricas de la lente (por ejemplo, mediante \texttt{cv2.undistort} o al rectificar planos con la homografía).
+
+\subsection{Cuadrícula en un Plano}
+Para validar la precisión de la matriz de calibración $K$, se utiliza el sistema de proyección de geometría virtual sobre la imagen capturada. El modelo asume que la cámara se encuentra nivelada horizontalmente a una altura $H$ respecto al suelo. Bajo esta configuración, se aplican los siguientes principios de geometría proyectiva:
+
+\begin{enumerate}
+    \item \textbf{Línea del Horizonte:} El plano del horizonte teórico coincide con la coordenada del centro óptico vertical ($c_y$) proyectada en la imagen.
+    \item \textbf{Proyección de la Base:} Para una distancia arbitraria $Z$ y una altura de cámara $H$, la intersección de una pared virtual con el plano del suelo se proyecta en la coordenada de píxel $y_{\text{base}}$ mediante la ecuación:
+    \begin{equation}
+        y_{\text{base}} = f_y \frac{H}{Z} + c_y
+    \end{equation}
+    \item \textbf{Interactividad:} Se implementaron controles deslizantes (\textit{sliders}) mediante la función \texttt{cv2.createTrackbar} de OpenCV, permitiendo ajustar los parámetros $Z$ (distancia) y $H$ (altura) en tiempo real.
+    \item \textbf{Procesamiento:} El script carga los parámetros intrínsecos desde el archivo \texttt{calib.txt} y dibuja las líneas de referencia sobre el flujo de vídeo utilizando \texttt{cv2.line}.
+\end{enumerate}
+
+Para ilustrar este procesamiento matemático computacional, el siguiente fragmento del script es el núcleo fundamental que proyecta una línea base virtual, calculando su posición en píxeles basándose en el modelo \textit{pinhole} y la altura de la cámara respecto al entorno:
+
+\begin{verbatim}
+# y = f_y * (H_real / Z_real) + c_y -> donde H es altura al suelo
+base_y = int(fy * (H_real / Z_real) + cy)
+cv.line(frame, (0, base_y), (w_img, base_y), (0, 0, 255), 3)
+
+# Líneas verticales sobre el plano a distancia Z_real
+for x_real in range(X_min, X_max + step, step):
+    y_img_suelo = int(fy * (H_real / Z_real) + cy)
+    y_img_techo = int(fy * (-H_real / Z_real) + cy)
+    x_img = int(fx * (x_real / Z_real) + cx)
+    cv.line(frame, (x_img, y_img_techo), (x_img, y_img_suelo), (0, 255, 0), 1)
+\end{verbatim}
+
+\subsubsection{Demostración Práctica (Realidad Aumentada)}
+
+La validación empírica de la matriz de cámara $K$ (centro óptico y distancias focales) se realiza comparando la perspectiva geométrica calculada con la escena real. 
+
+% Nota: Asegúrate de tener el paquete graphicx en tu preámbulo: \usepackage{graphicx}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/ejercicio1/grid.png}
+    \caption{Validación de la calibración mediante proyección de líneas base sobre el entorno físico.}
+    \label{fig:resultado_calib}
+\end{figure}
+
+Como se observa en la Figura \ref{fig:resultado_calib}, al introducir parámetros físicamente medibles (ej. altura de cámara $H=30\text{cm}$ y distancia a la pared $Z=2\text{m}$), la \textbf{línea base roja proyectada coincide transversalmente con el rodapié físico de la habitación}.
+
+Esta coincidencia precisa a lo largo de todo el eje horizontal demuestra el éxito del proceso: si la calibración fuera errónea o existiera distorsión no compensada, la proyección matemática del "suelo virtual" aparecería desfasada respecto a la geometría real.
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Ejercicio 2: Análisis de tráfico}
+% -----------------------------------------------------------------------
+Para ilustrar el funcionamiento del sistema de conteo, se presentan las siguientes capturas y análisis:
+
+\subsection{Detección y Seguimiento}
+
+Durante la ejecución, el script levanta dos ventanas principales que nos permiten depurar la visión del ordenador: 
+
+\begin{itemize}
+    \item \textbf{Máscara:} Expone el resultado binarizado tras aplicar el sustractor de fondo \texttt{MOG2} y el procesamiento morfológico. En esta ventana se observan los \textit{blobs} blancos que representan los vehículos en movimiento sobre un fondo negro.
+    \item \textbf{Tráfico:} Muestra los \textit{bounding boxes} (rectángulos amarillos) que delimitan los vehículos identificados y un indicador visual cuando estos intersectan la línea de control. Asimismo, los contadores de flujo se actualizan dinámicamente en la interfaz.
+\end{itemize}
+
+El fragmento de código fundamental responsable de la heurística temporal de este conteo es el siguiente, donde se asocia y compara la posición \texttt{Y} de un centroide en el \textit{frame} actual \texttt{cy} frente a su rastreo histórico en el frame anterior \texttt{vy}:
+
+\begin{verbatim}
+# Lógica de Conteo al cruzar la línea virtual LINE_Y
+# Bajada: Y anterior < LINE_Y y Y nuevo >= LINE_Y
+if vy < LINE_Y and cy >= LINE_Y:
+    conteo_bajada += 1
+    registro_eventos.append((time.time(), 'bajada'))
+    cv.circle(frame, (cx, cy), 15, (0, 0, 255), -1) 
+
+# Subida: Y anterior > LINE_Y y Y nuevo <= LINE_Y
+elif vy > LINE_Y and cy <= LINE_Y:
+    conteo_subida += 1
+    registro_eventos.append((time.time(), 'subida'))
+    cv.circle(frame, (cx, cy), 15, (0, 255, 0), -1)
+\end{verbatim}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/ejercicio2/captura_ventanas.png}
+    \caption{Demostración del \textit{tracking} y segmentación de vehículos en tiempo real.}
+    \label{fig:tracking}
+\end{figure}
+
+\subsection{Fundamento Matemático del Sustractor MOG2 y Limitaciones Físicas}
+El proceso de segmentación de vehículos en movimiento se fundamenta en la sustracción de fondo adaptativa por mezcla de gaussianas (\texttt{MOG2}). Este algoritmo modela la distribución de color de cada píxel individual de la escena a lo largo del tiempo como una suma ponderada de $K$ gaussianas (típicamente $K \in [3, 5]$). La probabilidad de que un píxel adquiera un valor $\mathbf{x}_t$ en el instante $t$ se define como:
+
+\begin{equation}
+    P(\mathbf{x}_t) = \sum_{i=1}^{K} w_{i,t} \cdot \eta(\mathbf{x}_t; \boldsymbol{\mu}_{i,t}, \boldsymbol{\Sigma}_{i,t})
+\end{equation}
+
+Donde $w_{i,t}$ representa el peso estimado de la gaussiana $i$ en el instante $t$, y $\eta$ es la función de densidad de probabilidad gaussiana con vector de medias $\boldsymbol{\mu}_{i,t}$ y matriz de covarianzas $\boldsymbol{\Sigma}_{i,t}$.
+
+Las gaussianas con mayores pesos y menores varianzas representan el fondo estático de la carretera. Cuando llega un nuevo fotograma, si el color de un píxel no se ajusta a ninguna de las gaussianas que definen el fondo, se clasifica como plano delantero (\textit{foreground}). El modelo se actualiza dinámicamente con una tasa de aprendizaje $\alpha \in [0, 1]$, permitiendo que el fondo se adapte gradualmente a variaciones de iluminación natural (como nubes pasajeras):
+
+\begin{equation}
+    w_{i,t} = (1 - \alpha)w_{i,t-1} + \alpha(M_{i,t})
+\end{equation}
+
+Donde $M_{i,t}$ es 1 para la gaussiana que coincide con el nuevo píxel y 0 para el resto.
+
+\subsubsection*{Limitaciones Técnicas del Sistema}
+Durante el análisis experimental de la secuencia se identificaron dos limitaciones críticas de los sustractores clásicos:
+\begin{itemize}
+    \item \textbf{Oclusión de Perspectiva:} Cuando dos vehículos circulan muy próximos entre sí, o uno adelanta a otro en una trayectoria paralela a la línea visual de la cámara, sus siluetas binarizadas se fusionan en un único contorno continuo en la máscara de movimiento. El sistema extrae un único centroide promedio, contando erróneamente dos vehículos como uno solo.
+    \item \textbf{Distorsión por Sombras Proyectadas:} Las sombras arrojadas por los coches sobre el asfalto cambian la intensidad del color de la calzada, clasificándose inicialmente como píxeles de primer plano. Para solventarlo, el detector MOG2 evalúa la atenuación de luminosidad en el espacio de color HSV (buscando regiones donde el tono y la saturación se mantengan pero el valor decaiga), pintando estas regiones de gris en la máscara para que puedan ser descartadas en el cálculo de contornos.
+\end{itemize}
+
+\subsection{Gráfica de Análisis de Tráfico}
+
+Tras finalizar el registro de datos (mediante la interrupción con la tecla \texttt{q}), el sistema vuelca los eventos de conteo en un histograma temporal. Esta gráfica agrupa los datos en intervalos de tiempo determinados, permitiendo visualizar los picos de flujo direccional.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{imagenes/ejercicio2/grafica_trafico.png}
+    \caption{Histograma de tráfico generado: Vehículos de bajada (rojo) y vehículos de subida (verde).}
+    \label{fig:grafica}
+\end{figure}
+
+\textit{Nota: En un despliegue operativo de 24 horas, la conversión del eje temporal permitiría identificar con precisión las "horas punta" de la vía analizada.}
+\newpage
+% -----------------------------------------------------------------------
+\section{Ejercicio 3: Actividad}
+% -----------------------------------------------------------------------
+
+En este ejercicio se ha desarrollado un script que optimiza el uso de recursos mediante un sistema de activación por movimiento y garantiza la privacidad de los sujetos detectados.
+
+\subsection*{1. Lógica de Activación y ROI}
+Para evitar el procesamiento continuo de toda la imagen, se define una \textbf{Región de Interés (ROI)}. Matemáticamente, el análisis se limita a:
+\begin{equation}
+    ROI = I(y_{1}:y_{2}, x_{1}:x_{2})
+\end{equation}
+
+Dentro de esta zona, el algoritmo \texttt{MOG2} realiza una sustracción de fondo. Se ha establecido un umbral de activación de \textbf{1000 píxeles blancos} en la máscara de movimiento. Si la suma de píxeles activos $M(t)$ supera este valor, se dispara la grabación y la inferencia de IA.
+
+\subsection*{2. Clasificación con YOLOv11 y Anonimización}
+Una vez activado el sistema, se utiliza el modelo \textbf{YOLOv11} para clasificar los objetos. Con el fin de cumplir con la protección de datos, el ejercicio implementa una función de anonimización: si el objeto detectado es una persona, se aplica un \textbf{desenfoque Gaussiano} sobre su caja delimitadora (\textit{bounding box}).
+
+La intensidad del desenfoque viene dada por la función:
+\begin{equation}
+    G(u,v) = \frac{1}{2 \pi \sigma^2} e^{-\frac{u^2+v^2}{2\sigma^2}}
+\end{equation}
+
+A nivel de código de implementación, este protocolo recorta exclusivamente la sub-imagen (\textit{ROI}) correspondiente al \textit{bounding box} inferido por YOLO y le aplica el \texttt{GaussianBlur} agresivo, garantizando que el sujeto quede inidentificable antes de volcar el frame al disco:
+
+\begin{verbatim}
+def anonymize(frame, boxes):
+    """Aplica un desenfoque Gaussiano pesado a zonas detectadas."""
+    for (x1, y1, x2, y2) in boxes:
+        roi = frame[y1:y2, x1:x2]
+        if roi.size > 0:
+            blur = cv.GaussianBlur(roi, (51, 51), 30)
+            frame[y1:y2, x1:x2] = blur
+\end{verbatim}
+
+\subsection{Privacidad y Cumplimiento Normativo (RGPD) en Sistemas de Vigilancia}
+El diseño de sistemas de videovigilancia con procesado inteligente está sujeto a estrictas regulaciones legales, especialmente en el marco europeo del Reglamento General de Protección de Datos (\texttt{RGPD}). La captura inconsciente de rostros de transeúntes constituye un tratamiento de datos biométricos de carácter personal.
+
+Para garantizar el cumplimiento de la ley sin sacrificar la funcionalidad de detección, este desarrollo se adhiere al principio de **Privacidad desde el Diseño** (\textit{Privacy by Design}):
+\begin{itemize}
+    \item \textbf{Anonimización en el Extremo (Edge Anonymization):} El desenfoque gaussiano sobre los contornos de las personas se ejecuta localmente en la memoria RAM del sistema antes de escribir cualquier bit en el almacenamiento físico o de realizar la transmisión remota de la alerta. Esto evita la persistencia física de imágenes no anonimizadas.
+    \item \textbf{Destrucción de Información en Alta Frecuencia:} El uso de un kernel gaussiano de gran dimensión ($51 \times 51$) con una desviación típica $\sigma = 30$ actúa como un filtro paso bajo extremo. Esto elimina por completo los gradientes de alta frecuencia espacial que definen los rasgos faciales (ojos, nariz, labios), impidiendo cualquier intento de reconstrucción o ataque por deconvolución inversa.
+\end{itemize}
+
+\subsection{Resultados y Notificaciones}
+El sistema finaliza el flujo enviando una captura del evento a través de un bot de \textbf{Telegram}. A continuación, se muestran las capturas que validan el correcto funcionamiento del ejercicio:
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.55\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/ejercicio3/captura_vigilancia.png}
+        \caption{Detección y anonimización de persona.}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.4\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/ejercicio3/captura_telegram.png}
+        \caption{Notificación recibida.}
+    \end{minipage}
+\end{figure}
+
+Como se observa, el sistema detecta correctamente al sujeto, oculta su identidad en tiempo real y gestiona la alerta de forma externa, cumpliendo con los requisitos del ejercicio.
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Ejercicio 4: Clasificador}
+% -----------------------------------------------------------------------
+Este ejercicio implementa un clasificador interactivo en tiempo real con una \textbf{arquitectura modular paralela}, permitiendo el intercambio dinámico de métricas de similitud sin interrumpir el flujo del programa.
+
+\subsection*{1. Arquitectura del Sistema}
+El desarrollo se divide en dos módulos principales:
+\begin{itemize}
+    \item \texttt{4\_clasificador.py}: Orquestador encargado del \textit{video stream}, la gestión de estados de sesión y la interfaz de usuario (UI).
+    \item \texttt{metodos.py}: Módulo que encapsula las tres heurísticas matemáticas requeridas: SIFT, Embeddings semánticos y Análisis de Procrustes.
+\end{itemize}
+
+\subsection*{2. Análisis de Métodos y Resultados}
+
+\subsubsection*{A) Heurística SIFT (Scale-Invariant Feature Transform)}
+Se basa en la localización de frecuencias espaciales y texturas intensas. Utiliza el \textit{Ratio Test de Lowe} para filtrar correspondencias erróneas. Es ideal para objetos planos con texturas ricas, presentando alta tolerancia a cambios de escala y rotación 2D.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/sift/modelo_0.png}
+        \caption{Modelo SIFT registrado (videojuego).}
+    \end{minipage}\hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/sift/modelo_0_captura.png}
+        \caption{Reconocimiento bajo rotación.}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/sift/modelo_1.png}
+        \caption{Modelo SIFT registrado (libro).}
+    \end{minipage}\hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/sift/modelo_1_captura.png}
+        \caption{Reconocimiento ampliado.}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/sift/no_modelo.png}
+        \caption{Modelo no registrado.}
+    \end{minipage}\hfill
+\end{figure}
+
+\subsubsection*{B) MobileNet V3 Embedder (Inferencia Semántica)}
+Este método proyecta el \textit{frame} en un espacio de características latentes mediante una red neuronal profunda, evaluando la \textbf{Similitud del Coseno}. A diferencia de SIFT, comprende conceptos estructurales.
+
+\textbf{Limitación detectada:} Sensibilidad a la traslación global. Al evaluar la escena completa, cambios significativos en el \textit{background} afectan al vector resultante. Para mitigar esto, se propone en futuras iteraciones el uso de \textit{ROIs} o segmentación previa (YOLO/MOG2) para aislar el objeto.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/embedder/modelo_0.png}
+        \caption{Modelo de objeto 3D.}
+    \end{minipage}\hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/embedder/modelo_0_captura.png}
+        \caption{Clasificación probabilística.}
+    \end{minipage}
+\end{figure}
+
+\subsubsection*{C) Análisis Ortogonal de Procrustes (Gestos de Manos)}
+Utilizando los \textit{landmarks} de \textit{MediaPipe Hands}, se resuelve el \textbf{Problema de Procrustes} para lograr invarianza ante traslación, escala y rotación. El sistema normaliza las nubes de puntos mediante la \textbf{Norma de Frobenius} y resuelve el giro ideal mediante la \textbf{Descomposición en Valores Singulares (SVD)} de la matriz de covarianza cruzada.
+
+Este avance algorítmico garantiza que el emparejamiento no sufra sesgos por la inclinación real de la muñeca. A continuación, el fragmento matricial correspondiente a esta mejora que dota de inmunidad posicional a los gestos analizados:
+
+\begin{verbatim}
+# --- Análisis de Procrustes (Alineación de Rotación) ---
+H = lm_frame.T @ lm_modelo  # Matriz de covarianza cruzada
+
+# Descomposición SVD para obtener la rotación óptima R
+U, S, Vt = np.linalg.svd(H)
+R = U @ Vt
+
+# Anular posibles reflexiones espejo (det < 0)
+if np.linalg.det(R) < 0:
+    Vt[-1, :] *= -1
+    R = U @ Vt
+    
+# Calcular métrica tras alinear los esqueletos 3D al mismo giro
+lm_frame_alineado = lm_frame @ R
+return np.linalg.norm(lm_frame_alineado - lm_modelo)
+\end{verbatim}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/manos/modelo_1.png}
+        \caption{Esqueleto de mano (V).}
+    \end{minipage}\hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/manos/modelo_1_captura.png}
+        \caption{Reconocimiento tras SVD.}
+    \end{minipage}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/manos/modelo_2.png}
+        \caption{Esqueleto de mano (Ok).}
+    \end{minipage}\hfill
+    \begin{minipage}{0.45\textwidth}
+        \centering
+        \includegraphics[width=0.8\textwidth]{imagenes/ejercicio4/manos/modelo_2_captura.png}
+        \caption{Reconocimiento tras SVD.}
+    \end{minipage}
+\end{figure}
+
+\textit{Nota: Se adjunta un video (ejercicio4\_clasificador/ejemplo\_ejecucion\_manos.mkv) para la demostración del funcionamiento para este método en concreto.}
+
+\subsection{Comparación de los Métodos Implementados}
+A modo de síntesis, la Tabla \ref{tab:comparativa_clasificador} resume los atributos clave, el rendimiento relativo y el comportamiento bajo perturbaciones de los tres métodos integrados en el clasificador modular:
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|p{2.5cm}|p{3.2cm}|p{2.5cm}|p{2cm}|}
+    \hline
+    \textbf{Método} & \textbf{Tipo de Entrada} & \textbf{Invarianzas Teóricas} & \textbf{Sensibilidad al Fondo} & \textbf{Coste CPU} \\ \hline
+    \textbf{SIFT} & Puntos clave en imágenes texturadas & Escala y rotación planar (2D) & Baja (solo evalúa descriptores locales) & Medio \\ \hline
+    \textbf{MobileNet V3} & Píxeles de la escena completa & Semántica abstracta (tolerancia parcial a rotación/escala) & Muy Alta (desplazamientos del fondo alteran el embedding) & Alto (requiere red neuronal profunda) \\ \hline
+    \textbf{Procrustes} & Coordenadas 3D (Landmarks) & Traslación, escala global e inclinación tridimensional (3D) & Nula (MediaPipe aísla la mano antes de alinear los puntos) & Muy Bajo (SVD sobre matrices de $21 \times 3$) \\ \hline
+    \end{tabular}
+    \caption{Tabla comparativa de rendimiento y características físicas de los métodos del clasificador.}
+    \label{tab:comparativa_clasificador}
+\end{table}
+
+\newpage
+% -----------------------------------------------------------------------
+\section{Ejercicio 5: Deep Learning}
+% -----------------------------------------------------------------------
+Este ejercicio aborda el flujo completo de \textit{Fine-tuning} utilizando la arquitectura \textbf{YOLOv11}. El objetivo es enseñar a la red a detectar un objeto personalizado mediante un dataset reducido pero de alta calidad generado localmente.
+
+\subsection{Metodología de Preparación}
+
+El entrenamiento se basa en un modelo pre-entrenado (\texttt{yolo11n.pt}) para aprovechar el conocimiento previo de extracción de características, reduciendo la necesidad de miles de imágenes a apenas unas decenas.
+
+\begin{itemize}
+    \item \textbf{Etiquetado Manual (\texttt{preparar\_dataset.py}):} Se utilizó un script interactivo para capturar \textit{frames} de vídeo. Mediante la pulsación de la barra espaciadora y el arrastre del ratón, se generaron archivos de anotación en formato YOLO (\texttt{.txt}) que contienen las coordenadas normalizadas del objeto.
+    \item \textbf{Configuración del Dataset:} Se estructuró un archivo \texttt{data.yaml} definiendo las rutas de entrenamiento/validación y el nombre de la clase personalizada.
+    \item \textbf{Aumento de Datos:} Durante el entrenamiento se aplicaron técnicas de \textit{augmentation} (volteos, cambios de brillo y mosaicos) para mejorar la robustez del modelo ante diferentes condiciones lumínicas.
+\end{itemize}
+
+\subsection{Funciones de Pérdida y Regularización en YOLOv11}
+El entrenamiento de redes neuronales profundas para detección de objetos requiere la combinación de distintas funciones de pérdida (\textit{loss functions}) orientadas a optimizar tanto la clasificación como la regresión espacial de las cajas delimitadoras (\textit{bounding boxes}):
+
+\begin{itemize}
+    \item \textbf{Pérdida de Caja (\textit{Box Loss} - CIoU):} YOLOv11 utiliza la pérdida \textit{Complete Intersection over Union} (\texttt{CIoU}). A diferencia del error cuadrático medio simple sobre las coordenadas ($L_2$), \texttt{CIoU} penaliza la discrepancia espacial considerando de forma simultánea el área de solapamiento, la distancia normalizada entre los centros de las cajas y la consistencia en el ratio de aspecto:
+    \begin{equation}
+        \mathcal{L}_{\text{CIoU}} = 1 - \text{IoU} + \frac{\rho^2(\mathbf{b}, \mathbf{b}^{\text{gt}})}{c^2} + \alpha v
+    \end{equation}
+    Donde $\rho(\cdot)$ es la distancia euclídea entre los centros, $c$ es la diagonal de la menor caja contenedora, y $v$ mide la consistencia del ratio de aspecto con su peso asociado $\alpha$.
+    
+    \item \textbf{Distribución Focal de Caja (\textit{dfl\_loss} - Distribution Focal Loss):} DFL modela las coordenadas de las cajas no como números únicos deterministas, sino como una distribución de probabilidad continua y discreta alrededor del borde real. Esto dota al detector de mayor estabilidad en objetos con bordes ambiguos u ocluidos.
+    
+    \item \textbf{Pérdida de Clasificación (\textit{cls\_loss} - BCE):} Optimiza la categorización del objeto mediante la entropía cruzada binaria (\textit{Binary Cross-Entropy}) para cada clase de forma independiente.
+\end{itemize}
+
+Durante el entrenamiento, estas pérdidas decrecen paulatinamente (como se expone en la sección siguiente), guiando la optimización de los pesos mediante descenso de gradiente estocástico.
+
+\subsection{Resultados del Entrenamiento}
+
+Se realizó una prueba de concepto con un entrenamiento de 10 épocas. A continuación se detallan los parámetros de rendimiento alcanzados:
+
+\begin{itemize} 
+    \item \textbf{Precisión:} La métrica \textbf{mAP50 alcanzó un valor de 0.995}, lo que indica una precisión casi perfecta en la localización del objeto dentro del entorno de validación.
+    \item \textbf{Eficiencia:} El modelo resultante (\texttt{best.pt}) tiene un peso de tan solo \textbf{5.4 MB}.
+    \item \textbf{Velocidad de Inferencia:} En una CPU AMD Ryzen 7, el tiempo de inferencia medio es de \textbf{94.1 ms}, permitiendo una ejecución fluida a aproximadamente 10 FPS sin necesidad de GPU dedicada.
+\end{itemize}
+
+\subsubsection{Resumen de la Salida del Terminal}
+
+A continuación se muestra el registro del progreso del entrenamiento, donde se observa la convergencia de las pérdidas (\textit{box\_loss} y \textit{cls\_loss}) y la mejora de la precisión por época:
+
+\begin{verbatim}
+Starting training for 10 epochs...
+
+      Epoch    GPU_mem   box_loss   cls_loss   dfl_loss   Instances      Size
+       1/10         0G      1.542      3.637      1.829          10       640
+       all          4          4    0.00333          1       0.411     0.316
+
+       ... (Progreso de épocas) ...
+
+      10/10         0G      0.949      2.491      1.216           9       640
+       all          4          4    0.00333          1       0.995     0.821
+
+Validating runs/detect/train4/weights/best.pt...
+Speed: 1.2ms preprocess, 94.1ms inference, 8.9ms postprocess per image
+\end{verbatim}
+
+\newpage
+% -----------------------------------------------------------------------
+\section{Ejercicio 6: Rectificación y Medición}
+% -----------------------------------------------------------------------
+
+Este ejercicio aborda el uso de la \textbf{homografía proyectiva 2D} para deshacer la deformación de perspectiva que sufren las cámaras al fotografiar planos inclinados, permitiendo realizar mediciones métricas precisas (como distancias en centímetros) directamente sobre imágenes bidimensionales.
+
+\subsection{Fundamentos Teóricos de la Homografía Proyectiva}
+
+Una homografía es una transformación proyectiva que mapea puntos de un plano proyectivo a otro. En visión por computador, relaciona las coordenadas homogéneas de un píxel en la imagen, $\mathbf{p} = [x, y, 1]^T$, con las coordenadas homogéneas de su punto correspondiente en un plano del mundo real, $\mathbf{P}_w = [X_w, Y_w, 1]^T$:
+
+\begin{equation}
+    \lambda \begin{bmatrix} X_w \\ Y_w \\ 1 \end{bmatrix} = H \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+\end{equation}
+
+Donde $H$ es una matriz de $3 \times 3$ con 8 grados de libertad (definida salvo un factor de escala global $\lambda$):
+
+\begin{equation}
+    H = \begin{bmatrix}
+    h_{11} & h_{12} & h_{13} \\
+    h_{21} & h_{22} & h_{23} \\
+    h_{31} & h_{32} & h_{33}
+    \end{bmatrix}
+\end{equation}
+
+Para resolver matemáticamente los elementos de la matriz $H$, se requiere un conjunto de al menos \textbf{4 correspondencias de puntos coplanares} de los que se conozcan tanto su posición en la imagen (en píxeles) como su posición en el mundo real (en unidades métricas como centímetros). Si disponemos de más de 4 puntos, el sistema se sobredetermina y se resuelve mediante estimación robusta empleando algoritmos como RANSAC para filtrar ruido de medición.
+
+\subsection{La Restricción de Coplanaridad y Efectos 3D}
+
+Una homografía es un mapeo biyectivo plano a plano. La suposición matemática subyacente es que \textbf{todos los puntos de interés deben pertenecer estrictamente al mismo plano físico} que contiene los puntos de calibración de referencia.
+
+Si intentamos medir un punto que sobresale del plano (por ejemplo, la tapa de una botella de $24\text{ cm}$ de altura colocada de pie sobre una mesa calibrada), la geometría proyectiva falla de las siguientes maneras:
+\begin{itemize}
+    \item \textbf{Desplazamiento por Paralaje/Perspectiva:} En una proyección en perspectiva, un punto elevado respecto al plano se desplaza radialmente hacia afuera desde el centro óptico en la imagen.
+    \item \textbf{Violación del Modelo:} El script matemático asume que el píxel de la tapa está pegado al suelo virtual de la mesa. Al aplicar la homografía $H$ sobre ese píxel desplazado, el sistema calcula una proyección del punto en una coordenada del mundo real mucho más lejana de lo que realmente está, inflando la distancia medida (por ejemplo, arrojando una medición errónea de $\approx 44\text{ cm}$ para una botella de $24\text{ cm}$).
+\end{itemize}
+
+Por tanto, este método de medición 2D está estrictamente limitado a medir elementos planos o bases apoyadas sobre la superficie de calibración.
+
+\subsection{Script Auxiliar de Selección de Píxeles}
+
+Para simplificar la obtención de las coordenadas exactas de las cuatro esquinas de la tarjeta de referencia (carnet de conducir) en la imagen, se ha desarrollado el script auxiliar \texttt{obtener\_pixeles.py}. Este script abre la imagen mediante una interfaz gráfica basada en OpenCV y registra las coordenadas $(X, Y)$ en píxeles al hacer clic izquierdo sobre los vértices:
+
+\begin{verbatim}
+#!/usr/bin/env python
+import cv2 as cv
+import argparse
+
+def manejador_raton(event, x, y, flags, param):
+    if event == cv.EVENT_LBUTTONDOWN:
+        print(f"{x} {y}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Mide píxeles con clic.")
+    parser.add_argument('--image', required=True, help="Imagen de entrada")
+    args = parser.parse_args()
+
+    img = cv.imread(args.image)
+    if img is None:
+        return
+
+    ventana_nombre = "Haz clic en las 4 esquinas - ESC para salir"
+    cv.namedWindow(ventana_nombre)
+    cv.setMouseCallback(ventana_nombre, manejador_raton)
+
+    while True:
+        cv.imshow(ventana_nombre, img)
+        key = cv.waitKey(30) & 0xFF
+        if key == 27 or key == ord('q'):
+            break
+    cv.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
+\end{verbatim}
+
+\subsection{Proceso de Rectificación y Calibración Métrica}
+
+Como patrón de calibración, se utilizó un carnet de conducir (tarjeta estándar ISO/IEC 7810 ID-1) cuyas dimensiones nominales son de \textbf{$8.5\text{ cm} \times 5.4\text{ cm}$}. 
+
+Tras extraer las coordenadas de sus cuatro esquinas en píxeles mediante el script interactivo, se generó el archivo de texto de referencia \texttt{referencias.txt}:
+\begin{verbatim}
+409 297 0 8.5
+419 364 5.4 8.5
+548 337 5.4 0
+528 270 0 0
+\end{verbatim}
+
+El script principal de medición \texttt{6\_rectificacion.py} realiza los siguientes pasos computacionales:
+\begin{enumerate}
+    \item \textbf{Carga de Referencias y Cálculo de $H$:} Lee los puntos del archivo e invoca \texttt{cv.findHomography(src\_pts, dst\_pts, cv.RANSAC)}, obteniendo la matriz $H$ de $3 \times 3$.
+    \item \textbf{Proyección Perspectiva del Usuario:} Cuando el usuario hace clic en dos puntos cualesquiera $p_1$ y $p_2$ de la imagen, aplica la homografía mediante \texttt{cv.perspectiveTransform} para proyectar dichos puntos al plano real métrico de la mesa, obteniendo $P_{1\_real} = (X_1, Y_1)$ y $P_{2\_real} = (X_2, Y_2)$.
+    \item \textbf{Cálculo de Distancia Real:} Computa la distancia euclídea entre ambos puntos:
+    \begin{equation}
+        d = \sqrt{(X_2 - X_1)^2 + (Y_2 - Y_1)^2}
+    \end{equation}
+    Y dibuja de forma interactiva la línea de medición y el valor numérico en pantalla.
+\end{enumerate}
+
+\subsection{Resultados y Análisis Experimental}
+
+Para validar el sistema experimentalmente, el usuario realiza una serie de capturas documentadas:
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{imagenes/ejercicio6/img_stream.png}
+    \caption{Fotografía extraída mediante la cámara y el script \texttt{stream.py} para la calibración.}
+    \label{fig:calib_e6}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/ejercicio6/ancho.png}
+        \caption{Medición del ancho ($5.4\text{ cm}$) del carnet.}
+        \label{fig:ancho_carnet}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/ejercicio6/alto.png}
+        \caption{Medición del largo ($8.5\text{ cm}$) del carnet.}
+        \label{fig:alto_carnet}
+    \end{minipage}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{imagenes/ejercicio6/medida_metro.png}
+    \caption{Medición de un tramo de cinta métrica colocada plana sobre la mesa para corroborar la precisión de la homografía.}
+    \label{fig:medicion_metro}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{imagenes/ejercicio6/metro.jpeg}
+    \caption{Captura en primer plano de la cinta métrica (metro) para contrastar los números reales y validar el error de pixelado de la cámara.}
+    \label{fig:metro_detalle}
+\end{figure}
+
+Como se observa en los resultados (Figuras \ref{fig:ancho_carnet}, \ref{fig:alto_carnet} y \ref{fig:medicion_metro}), las distancias medidas de forma virtual sobre la superficie de la mesa coinciden con un margen de error sub-milimétrico respecto a las dimensiones de la cinta métrica real y del carnet de conducir. Sin embargo, tal y como se discutió teóricamente, medir objetos tridimensionales que se eleven respecto al plano de la mesa (como botellas o cajas) introducirá un error proyectivo sistemático.
+
+
+
+
+\newpage
+% -----------------------------------------------------------------------
+\section{Ejercicios Opcionales}
+% -----------------------------------------------------------------------
+
+\subsection{Opcional 1: Implementación propia de un algoritmo (Filtro Sobel)}
+En este ejercicio extra se ha desarrollado desde cero una implementación matemática del popular filtro de detección de bordes \textbf{Sobel}. 
+
+Para evitar los ineficientes bucles \texttt{for} anidados tradicionales al iterar sobre una imagen bidimensional en Python, el procesamiento matemático se ha resuelto mediante una implementación vectorizada apoyada puramente en \textbf{Numpy}. Este acercamiento consiste en la abstracción por particionamiento de la imagen (\textit{array slicing}) en 8 matrices desplazadas y la adición de las mismas multiplicadas por los coeficientes de los operadores de Sobel.
+
+Físicamente, el filtro de Sobel realiza una convolución espacial discreta utilizando los siguientes núcleos de tamaño $3 \times 3$ para estimar las derivadas parciales en los ejes horizontal y vertical:
+\begin{equation}
+    K_x = \begin{bmatrix}
+    -1 & 0 & 1 \\
+    -2 & 0 & 2 \\
+    -1 & 0 & 1
+    \end{bmatrix}, \quad
+    K_y = \begin{bmatrix}
+    -1 & -2 & -1 \\
+    0 & 0 & 0 \\
+    1 & 2 & 1
+    \end{bmatrix}
+\end{equation}
+
+En lugar de desplazar un kernel deslizante sobre los píxeles, la vectorización realiza recortes matriciales desfasados (p. ej., \texttt{img[0:-2, 0:-2]} para la esquina superior izquierda y \texttt{img[2:, 2:]} para la inferior derecha). Esto superpone y alinea en memoria RAM bloques de píxeles colindantes de forma instantánea. El fragmento crítico que demuestra la resolución de las derivadas parciales de la imagen ($G_x$ y $G_y$) mediante superposición matricial es el siguiente:
+
+\begin{verbatim}
+# Convolución Gx (Derivada parcial respecto a X)
+gx = (-1 * top_left) + (1 * top_right) + \
+     (-2 * mid_left) + (2 * mid_right) + \
+     (-1 * bottom_left) + (1 * bottom_right)
+
+# Convolución Gy (Derivada parcial respecto a Y)
+gy = (-1 * top_left) + (-2 * top_mid) + (-1 * top_right) + \
+     (1 * bottom_left) + (2 * bottom_mid) + (1 * bottom_right)
+
+# Magnitud combinada del gradiente espacial
+magnitude = np.sqrt(gx**2 + gy**2)
+\end{verbatim}
+
+\subsubsection*{Análisis de Rendimiento Computacional (Benchmark)}
+El ejercicio contrasta simultáneamente la ejecución de nuestra solución vectorizada en Numpy frente a la implementación nativa \texttt{cv.Sobel} expuesta por la librería OpenCV, mostrando sus fotogramas por segundo (FPS) en pantalla.
+
+Como conclusión técnica del experimento (ilustrado en la Figura \ref{fig:sobel_bench}), aunque la versión desarrollada elude por completo las iteraciones secuenciales delegando el cálculo al backend de C de Numpy, \textbf{OpenCV domina abrumadoramente en rendimiento algorítmico}. Como reflejan los datos capturados en tiempo real, la implementación matemática en Numpy ejecuta sobre \textbf{65 FPS ($\sim$11 ms)}, mientras que la solución nativa \texttt{cv.Sobel} triplica holgadamente el rendimiento alcanzando los \textbf{202 FPS ($\sim$5 ms)}. Esta comparativa de estrés evidencia y confirma la supremacía en entornos productivos de las librerías construidas de forma nativa en C++ y fuertemente paralelizadas bajo instrucciones hardware SIMD.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\textwidth]{imagenes/opcionales/opc1/captura_sobel.png}
+    \caption{Comparativa en tiempo real entre la solución \textit{Numpy pura} (Izq) y la nativa de \textit{OpenCV} (Der).}
+    \label{fig:sobel_bench}
+\end{figure}
+
+
+\newpage
+\subsection{Opcional 2: Controlador Sin Contacto (HCI de Múltiples Grados de Libertad)}
+Este ejercicio implementa una interfaz Hombre-Máquina (HCI) para interactuar con aplicaciones informáticas sin contacto físico, valiéndonos exclusivamente del reconocimiento esquelético proporcionado por la topología ligera del modelo \textbf{MediaPipe Hands}.
+
+A diferencia de un mero seguimiento posicional XY (como un ratón virtual), el sistema deduce \textbf{dos grados de libertad (DoF) continuos y abstractos} a partir de la topología 3D de la mano del usuario:
+\begin{itemize}
+    \item \textbf{Rotación (Ángulo):} Computado trazando un vector direccional bidimensional desde la muñeca (\textit{landmark} 0) hasta la punta del dedo corazón (\textit{landmark} 12) resolviendo su arco-tangente, permitiendo que el giro real de la muñeca del usuario en el espacio físico actúe como un potenciómetro rotativo.
+    \item \textbf{Profundidad (Zoom/Escala):} Ante la carencia de sensores estéreo de profundidad infrarrojos, el sistema estima heurísticamente la coordenada \textit{Z} apoyándose en la distancia euclídea entre los nudillos de los extremos de la mano (índice y meñique). Dado que la palma humana es un cuerpo rígido indeformable, un aumento en la distancia escalar de estos puntos en píxeles denota ineludiblemente un acercamiento físico a la lente.
+\end{itemize}
+
+El fragmento subyacente que resuelve matemáticamente esta biometría es el siguiente:
+\begin{verbatim}
+# 1. ROTACIÓN: Ángulo formado por el vector Muñeca -> Dedo corazón
+angulo_virtual = math.degrees(math.atan2(p_middle[1] - p_wrist[1], 
+                                         p_middle[0] - p_wrist[0])) + 90
+
+# 2. ESCALA (Z-Depth): Distancia euclídea entre nudillo índice y meñique
+distancia_palma_px = math.sqrt((p_pinky[0] - p_index[0])**2 + 
+                               (p_pinky[1] - p_index[1])**2)
+escala_virtual = max(20, min(400, int(distancia_palma_px * 2.5)))
+\end{verbatim}
+
+La viabilidad del algoritmo se constata con un programa de demostración dinámica, donde el usuario controla en tiempo real la rotación explícita y el tamaño de renderizado de un polígono virtual en pantalla usando su mano flotante como un "volante volumétrico".
+
+\subsubsection*{Suavizado Temporal y Robustez de Control}
+Una limitación inherente en la detección de puntos clave de MediaPipe es el ruido blanco de alta frecuencia espacial (\textit{jittering}), provocado por pequeñas variaciones en la estimación de los landmarks del modelo deep learning ante cambios de iluminación o microtemblores de la mano. A nivel conceptual, la estabilización de los dos grados de libertad analizados se puede modelar mediante filtros paso bajo temporales, como el filtro de media móvil exponencial (\texttt{EMA}):
+\begin{equation}
+    y_t = \alpha \cdot x_t + (1 - \alpha) \cdot y_{t-1}
+\end{equation}
+Donde $x_t$ es la medida geométrica cruda en el instante actual, $y_{t-1}$ es el valor filtrado previo y $\alpha \in [0.1, 0.3]$ regula el compromiso entre suavidad y retardo. Esto elimina por completo el parpadeo visual del polígono.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc2/captura_controlador.png}
+    \caption{Control de rotación y factor de escala manipulando el polígono virtual con la mano.}
+    \label{fig:controlador}
+\end{figure}
+
+
+\newpage
+\subsection{Opcional 3: Estimación de Ego-Motion y Velocidad Angular (Lucas-Kanade)}
+Este ejercicio extiende la técnica de seguimiento de flujo óptico (\textit{Optical Flow}) disperso de Lucas-Kanade. El paradigma de seguimiento se invierte por completo: en lugar de rastrear objetos aislados moviéndose por la escena, el sistema rastrea simultáneamente cientos de esquinas estacionarias de la habitación para \textbf{deducir empíricamente cómo se mueve la propia cámara en el espacio 3D (\textit{Ego-Motion})}.
+
+\subsubsection*{El Fenómeno de la Apertura y Filtrado de Ruido}
+La estimación del flujo óptico asume que el brillo de los píxeles correspondientes a un objeto se mantiene constante entre fotogramas sucesivos. No obstante, surge la limitación física del \textbf{problema de la apertura}: cuando la cámara captura un borde recto continuo sin textura transversal, solo es posible determinar el componente de movimiento perpendicular a dicho borde. Para mitigar esta limitación geométrica, el script inicializa el seguimiento seleccionando exclusivamente esquinas bien definidas mediante la función \texttt{goodFeaturesToTrack} de Shi-Tomasi, donde las variaciones espaciales bidimensionales del gradiente son máximas.
+
+El algoritmo detecta movimientos de cámara de barrido (\textit{Pan / Tilt}) analizando estadísticamente la polaridad predominante de las trayectorias. Para detectar traslaciones frontales o de profundidad (\textit{Dolly / Acercamiento}), se ejecuta analíticamente el \textbf{producto escalar} entre el vector de movimiento bidimensional de cada píxel y su vector radial centrífugo: un resultado macroscópicamente positivo implica una expansión de los píxeles hacia los márgenes, destilando un avance físico del operador.
+
+Añadido a la inferencia direccional, y parametrizando matemáticamente el algoritmo con el Campo Visual Horizontal (FOV) nativo del sensor, es posible derivar a tiempo real la \textbf{Velocidad Angular} en grados físicos por segundo a la que está rotando la cámara:
+
+\begin{verbatim}
+# -- PRODUCTO ESCALAR PARA DETECTAR AVANCE EN PROFUNDIDAD (Z-Axis) --
+norma_c = np.hypot(vec_c_x, vec_c_y)
+dot_product = (dx * vec_c_x + dy * vec_c_y) / norma_c # Expansión radial
+
+# -- CÁLCULO DE VELOCIDAD ANGULAR APROXIMADA (Eje Pan) --
+# fps = fotogramas/seg, grados_per_pixel = FOV / resolución nativa
+vel_angular = -mean_dx * fps * grados_per_pixel
+\end{verbatim}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc3/captura_egomotion.png}
+    \caption{Interfaz telemétrica reportando el movimiento direccional global de la cámara y su velocidad de rotación angular en base al flujo óptico disperso.}
+    \label{fig:egomotion}
+\end{figure}
+
+\newpage
+\subsection{Opcional 4: Resolución de Sudokus con AR}
+Este ejercicio implementa un sistema completo de visión artificial interactiva que combina extracción de características geométricas, Reconocimiento Óptico de Caracteres (OCR) y un motor lógico de \textit{Backtracking} para proyectar la solución de un Sudoku en Realidad Aumentada directamente sobre el papel físico.
+
+El \textit{pipeline} desarrollado consta de las siguientes fases críticas:
+\begin{enumerate}
+    \item \textbf{Detección y Deformación:} Mediante \texttt{cv.Canny} y la aproximación poligonal de contornos, se localiza el contorno cuadrangular de mayor área (el marco exterior del Sudoku). A continuación, se aplica \texttt{cv.getPerspectiveTransform} para extraer y "aplanar" la rejilla a un espacio bidimensional ortogonal (Top-Down).
+    \item \textbf{Extracción OCR y Preprocesamiento:} La rejilla aplanada se divide en 81 celdas. Dada la fragilidad inherente de la librería Tesseract ante caracteres individuales aislados, se implementó un flujo robusto de preprocesamiento: desenfoque previo para mitigar la textura del papel, umbralización adaptativa (\texttt{cv.adaptiveThreshold}) para garantizar inmunidad ante sombras irregulares, un escalado cúbico y la adición vital de un margen perimetral blanco (\textit{Quiet Zone}) para estabilizar las inferencias del motor OCR.
+    \item \textbf{Motor Lógico y Proyección (AR):} La matriz digital inferida se transfiere a un algoritmo recursivo de \textit{Backtracking} que halla la solución unívoca del puzzle. Finalmente, los dígitos resueltos se renderizan en una máscara virtual y se devuelven a las coordenadas originales del mundo 3D manipulando la transformación de perspectiva inversa.
+\end{enumerate}
+
+\subsubsection*{Análisis de Robustez y Limitaciones (El eslabón del OCR)}
+Durante las pruebas empíricas del entorno, la extracción OCR en bruto se erigió como el elemento más susceptible a fallos, provocando ocasionales falsos negativos (caracteres no leídos debido a recortes extremos, evaluados finalmente como \texttt{0}). A continuación se expone el volcado de inferencia de una de nuestras pruebas:
+
+\begin{verbatim}
+Tablero Escaneado (Ceros = Celdas Vacias):
+[[5 3 0 0 7 0 0 0 0]
+ [6 0 0 1 9 5 0 0 0]
+ [0 0 8 0 0 0 0 6 0]
+ [8 0 0 0 6 0 0 0 3]
+ [4 0 0 8 0 3 0 0 1]
+ [7 0 0 0 2 0 0 0 0]
+ [0 6 0 0 0 0 2 8 0]
+ [0 0 0 4 1 9 0 0 5]
+ [0 0 0 0 0 0 0 7 9]]
+\end{verbatim}
+
+A pesar de existir un par de omisiones puntuales por parte del OCR respecto a los números originales del papel, el diseño de la arquitectura general demostró una **inmensa resiliencia tecnológica**: al interpretar un falso negativo simplemente como una "celda vacía", el motor algorítmico de \textit{Backtracking} fue perfectamente capaz de deducir matemáticamente el número original faltante, solventando la deficiencia visual y resolviendo el tablero en su totalidad sin colapsar.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{imagenes/opcionales/opc4/captura_sudoku.png}
+    \caption{El sistema de AR proyectando dinámicamente los dígitos resueltos (en verde) sobre el papel original, adaptándose a la perspectiva óptica de la cámara.}
+    \label{fig:sudoku_ar}
+\end{figure}
+
+
+\newpage
+\subsection{Opcional 5: Sustitución de Foto del DNI en Tiempo Real (AR)}
+Este ejercicio implementa un efecto de \textbf{Realidad Aumentada} que detecta un DNI o tarjeta de identificación y sustituye dinámicamente la fotografía del portador por otra imagen elegida por el usuario, replicando la perspectiva espacial de la tarjeta original de forma indetectable.
+
+Al igual que en aproximaciones estáticas de ejercicios anteriores, el rastreo se fundamenta en la extracción de características invariantes \textbf{SIFT}. Sin embargo, dado que la pequeña zona de una foto personal carece a menudo de la densidad de texturas algorítmicas requerida, el sistema captura inteligentemente todo el documento de identidad como marco principal para garantizar un \textit{tracking} inquebrantable. Seguidamente, de manera interactiva el usuario define en el origen de coordenadas de su tarjeta la sub-región estática (ROI) donde recae su rostro.
+
+Durante el \textit{stream} de vídeo en directo, el sistema empareja los descriptores de referencia frente al frame actual. Al haber múltiples objetos y texturas en la habitación, muchos emparejamientos serán erróneos (\textit{outliers}). Para solucionarlo, el algoritmo \textbf{RANSAC} (Random Sample Consensus) selecciona aleatoriamente subconjuntos de 4 correspondencias, estima la homografía tentativa $H$ y verifica cuántos del resto de puntos concuerdan bajo un umbral de píxeles:
+\begin{equation}
+    \| \mathbf{p}_i' - H \mathbf{p}_i \| < \text{umbral}
+\end{equation}
+Solo la homografía con el mayor número de puntos coincidentes (\textit{inliers}) es seleccionada, garantizando un tracking geométricamente robusto frente al ruido del fondo. Acto seguido, transfigura la imagen impostora distorsionándola algebraicamente bajo las perspectivas ópticas exactas de la lente actual:
+
+\begin{verbatim}
+# Encontrar emparejamientos robustos (Homografía)
+H, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
+
+if H is not None:
+    # Proyectar las 4 esquinas de la foto original a la nueva rotación de la cámara
+    pts_act = cv.perspectiveTransform(pts_roi_ref.reshape(-1,1,2), H)
+    
+    # Deformar imagen impostora para encajar en perspectiva e integrarla (Blending)
+    display  = pegar_imagen_en_region(frame, pts_act, img_swap)
+\end{verbatim}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc5/captura_dni.png}
+    \caption{Seguimiento SIFT robusto del carnet de identidad y deformación homográfica de la imagen de sustitución inyectada.}
+    \label{fig:dni_ar}
+\end{figure}
+
+
+\newpage
+\subsection{Opcional 6: Mosaico Automático Panorámico (Image Stitching)}
+En este apartado se ha desarrollado desde cero en Python puro un sistema algorítmico de cosido automático de imágenes (\textit{Image Stitching}) para ensamblar fotografías geográficas sin suponer conocimiento estructural, temporal ni secuencial sobre las mismas.
+
+Para lograr un sistema autónomo capaz de recibir fotos desordenadas (ej. provenientes de un Dron de mapeo), el código orquesta un procesamiento generalizado fundamentado en topología de grafos:
+\begin{enumerate}
+    \item \textbf{Indexación de relaciones transversales:} El sistema compara exhaustivamente las combinaciones de todas las fotografías bidireccionales usando SIFT, registrando como aristas de un grafo únicamente aquellos pares que comparten al menos $10$ descriptores homólogos robustos.
+    \item \textbf{Resolución de Grafo Acumulativa (BFS):} Se define analíticamente un epicentro visual (la foto central del vector) y se traza un recorrido de \textit{Búsqueda en Anchura} para transmutar matemáticamente el sistema de coordenadas de todas y cada una de las imágenes periféricas hacia la perspectiva final de la imagen central multiplicando y heredando homografías sucesivas en cascada.
+\end{enumerate}
+
+\subsubsection*{El Fenómeno de Deriva Geométrica (Drift)}
+Una limitación teórica de este encadenamiento secuencial en cascada es la acumulación progresiva de pequeños errores de estimación matemática de los emparejamientos y del cálculo de las matrices individuales. Al multiplicar homografías sucesivas ($H_{\text{global}} = H_1 \cdot H_2 \cdots H_n$), el error residual crece exponencialmente con la profundidad del grafo BFS. En conjuntos de más de 5 o 6 imágenes, este fenómeno de deriva (\textit{drift}) se manifiesta como desalineaciones geométricas visibles (escalones y solapados rotados) en los extremos de la panorámica, lo que exige optimizadores de reajuste global en proyectos de gran envergadura.
+
+\begin{verbatim}
+# BFS para calcular la homografía acumulada de cada imagen hacia la referencia global
+H_global = {ref: np.eye(3)}
+visitados = {ref}
+cola = [ref]
+
+while cola:
+    actual = cola.pop(0)
+    for (i, j), H in grafo_H.items():
+        if i == actual and j not in visitados:
+            H_global[j] = H_global[actual] @ H   # Matriz de transformación encadenada
+            visitados.add(j)
+            cola.append(j)
+\end{verbatim}
+
+
+\begin{figure}[h]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/opcionales/opc6/panorama_manual.jpg}
+        \caption{Mosaico generado con algoritmo propio de Grafos-Homografías.}
+        \label{fig:mosaico_manual}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{imagenes/opcionales/opc6/panorama_opencv.jpg}
+        \caption{Mosaico generado nativamente con \texttt{cv.Stitcher}.}
+        \label{fig:mosaico_opencv}
+    \end{minipage}
+\end{figure}
+
+\subsubsection*{Comparativa de Resultados}
+Al enfrentar visualmente el mosaico generado por nuestro algoritmo frente a la herramienta industrial \texttt{cv.Stitcher} de OpenCV, se aprecian diferencias sustanciales en el renderizado final de la imagen panorámica. Aunque nuestro enfoque matemático de grafos proyecta geométricamente la perspectiva de todas las imágenes de forma correcta y sólida sobre un plano cartesiano, padece de viñeteado y un solapamiento "crudo" en las costuras donde termina una imagen y empieza la contigua.
+
+En marcado contraste, la solución nativa de \textit{OpenCV} (Figura \ref{fig:mosaico_opencv}) no solo une las perspectivas geométricas, sino que implementa algoritmos heurísticos de \textit{Exposure Compensation} (para igualar el brillo global de todas las tomas) y \textit{Multi-band Blending} (para difuminar perfectamente las costuras de transición). Esta comparativa visual ratifica académicamente que el problema real del cosido de imágenes requiere tanto de geometría proyectiva pura como de un postprocesado avanzado de corrección de color y mezcla fotométrica para ser invisible al ojo humano.
+
+
+\newpage
+\subsection{Opcional 7: Realidad Aumentada (Objetos Virtuales con el Ratón) }
+En este ejercicio se ha implementado un sistema de \textbf{Realidad Aumentada interactiva} sobre un plano físico delimitado por un tablero de ajedrez. El usuario puede realizar clics con el ratón en la imagen para colocar objetos virtuales en el plano real de forma persistente. Dichos objetos se mantienen proyectados en su lugar correcto sin importar los movimientos y rotaciones de la cámara o del propio tablero.
+
+\subsubsection*{1. Interacción Clic-Imagen (Homografía Inversa)}
+Cuando el usuario realiza un clic izquierdo en la ventana gráfica en las coordenadas de píxeles $(x, y)$, el sistema necesita mapear ese punto al plano bidimensional del mundo real ($Z=0$). Para ello, se calcula en cada frame la homografía directa $H_{\text{mundo} \to \text{imagen}}$ a partir de las esquinas del tablero detectadas.
+
+La transformación proyectiva que convierte puntos de la imagen a coordenadas del plano del mundo es la homografía inversa $H_{\text{imagen} \to \text{mundo}} = H_{\text{mundo} \to \text{imagen}}^{-1}$:
+\begin{equation}
+    \begin{bmatrix} X_w \\ Y_w \\ 1 \end{bmatrix} \sim H_{\text{imagen} \to \text{mundo}} \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+\end{equation}
+
+Aplicando esta transformación proyectiva (mediante \texttt{cv.perspectiveTransform}), se obtienen las coordenadas reales $(X_w, Y_w)$ sobre el tablero físico, las cuales son almacenadas junto a su color aleatorio en la lista de objetos del mundo.
+
+\subsubsection*{2. Proyección y Visualización (Homografía Directa y Pose 3D)}
+El sistema implementa dos modos de visualización alternables en tiempo real mediante la tecla \texttt{'m'}:
+\begin{itemize}
+    \item \textbf{Modo 2D (Círculos con Perspectiva):} Los objetos se representan como círculos sobre el plano. Para que su radio en píxeles se deforme y escale de acuerdo con la perspectiva de la cámara, el script proyecta el centro $(X_w, Y_w)$ y un punto en el borde $(X_w + R_w, Y_w)$ mediante la homografía directa $H_{\text{mundo} \to \text{imagen}}$:
+    \begin{equation}
+        r_{\text{pixels}} = \| \mathbf{p}_{\text{borde\_img}} - \mathbf{p}_{\text{centro\_img}} \|
+    \end{equation}
+    Esto provoca un escalado natural según la distancia focal y la cercanía de la cámara.
+    
+    \item \textbf{Modo 3D (Cubos Volumétricos):} Se estima la pose tridimensional de la cámara (orientación $R$ y traslación $t$) resolviendo el problema de \textbf{Perspective-n-Point (PnP)}. El algoritmo PnP encuentra la rotación $R \in SO(3)$ y el vector de traslación $t \in \mathbb{R}^3$ que minimizan el error de reproyección de las $N$ esquinas coplanares conocidas del tablero de ajedrez en coordenadas tridimensionales de calibración frente a sus proyecciones 2D en píxeles. Esto genera la matriz de proyección de la perspectiva de la cámara completa:
+    \begin{equation}
+        M = K \begin{bmatrix} R & | & t \end{bmatrix}
+    \end{equation}
+    A partir de la pose, se definen los 8 vértices tridimensionales de un cubo apoyado en el plano $(X_w, Y_w, 0)$ y con altura vertical dirigida hacia arriba en el espacio (coordenada $Z$ negativa, saliendo del tablero):
+    \begin{equation}
+        \mathbf{V} = \{ (X_w \pm s, Y_w \pm s, Z) \} \quad \text{con } Z \in [0, -2s]
+    \end{equation}
+    Los vértices se proyectan a la imagen y se dibujan tanto sus aristas como sus caras laterales mediante sombreado translúcido con mezcla alfa (\textit{alpha blending}), proporcionando una sensación de volumen y oclusión realista.
+\end{itemize}
+
+Para garantizar una experiencia premium, el sistema también proyecta de forma interactiva los ejes coordenados tridimensionales (rojo para X, verde para Y, azul para Z) en la esquina de origen $(0,0,0)$ del tablero y enmarca el contorno de todo el patrón detectado en verde.
+
+\subsubsection*{3. Optimizaciones de Rendimiento y Robustez}
+Para lograr una experiencia interactiva fluida (a 30 FPS constantes) y evitar retardos perceptibles al realizar clics, se han implementado tres optimizaciones de software críticas:
+\begin{itemize}
+    \item \textbf{Detección Multiescala y Refinamiento Local:} La búsqueda inicial de esquinas mediante \texttt{cv.findChessboardCorners} se realiza sobre una versión reducida a la mitad de su tamaño (reduciendo el número de píxeles analizados en un 75\%). Una vez localizadas las esquinas, las coordenadas se escalan de vuelta al tamaño original y se refinan con precisión sub-píxel mediante \texttt{cv.cornerSubPix} únicamente sobre el área localizada.
+    \item \textbf{Detección Invariante a la Rotación:} El algoritmo evalúa el patrón especificado por el usuario (ej. $9 \times 6$) y, en caso de fallo, intenta de forma automática su transpuesta ($6 \times 9$). Esto permite al usuario rotar el tablero $90^\circ$ sin perder el tracking de los objetos.
+    \item \textbf{Descarte Rápido de Frames:} Se utiliza la bandera \texttt{cv.CALIB\_CB\_FAST\_CHECK} para descartar de manera instantánea aquellos frames que no contengan un tablero de ajedrez, evitando que el procesador gaste recursos innecesarios buscando esquinas cuando el folio no está visible.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc7/captura_objetos_ar.png}
+    \caption{Sistema de Realidad Aumentada interactiva renderizando un cubo virtual 3D sombreado con alineación de ejes tridimensionales sobre el plano físico.}
+    \label{fig:objetos_ar}
+\end{figure}
+
+
+\newpage
+\subsection{Opcional 8: Reconstrucción de Modelo 3D con COLMAP}
+En este ejercicio se ha explorado el campo de la fotogrametría digital y la reconstrucción tridimensional a partir de múltiples vistas (Multi-View Reconstruction) mediante el uso de **COLMAP**, una suite de software de código abierto especializada en algoritmos de Structure from Motion (SfM) y Multi-View Stereo (MVS).
+
+Para facilitar el flujo de trabajo y la reproducibilidad, se ha desarrollado un script en Python (\texttt{opc8\_colmap.py}) que automatiza la orquestación y secuenciación de los comandos nativos de la CLI de COLMAP:
+
+\begin{verbatim}
+# Fragmento del script que invoca la extracción de descriptores SIFT
+cmd_extractor = [
+    'colmap', 'feature_extractor',
+    '--database_path', db_path,
+    '--image_path', args.images,
+    '--ImageReader.single_camera', '1',
+    '--SiftExtraction.use_gpu', use_gpu
+]
+res = subprocess.run(cmd_extractor, capture_output=False, text=True)
+\end{verbatim}
+
+\subsubsection*{Metodología del Pipeline Computacional}
+El proceso de reconstrucción se divide analíticamente en cuatro etapas fundamentales:
+\begin{enumerate}
+    \item \textbf{Extracción de Características (SIFT):} Analiza cada imagen de forma independiente para localizar y describir puntos clave robustos invariantes a la escala y la rotación. Los descriptores se indexan de manera centralizada en una base de datos relacional SQLite (\texttt{database.db}).
+    \item \textbf{Matching Exhaustivo:} Compara todos los descriptores de cada par de imágenes para establecer correspondencias geométricas robustas (matches). Se utiliza RANSAC para eliminar falsos emparejamientos debidos a ruido o texturas repetitivas.
+    \item \textbf{Structure from Motion (SfM):} A partir de las correspondencias binoculares y multi-vista, estima de forma iterativa y simultánea tanto la **geometría tridimensional intrínseca y extrínseca de cada cámara** (orientación y traslación) como la **posición espacial 3D de los puntos homólogos reconstruidos** (nube dispersa). Este problema de optimización no lineal conjunto se resuelve mediante \textit{Bundle Adjustment} (Ajuste de Haces).
+    \item \textbf{Multi-View Stereo (MVS):} Utiliza la calibración geométrica de las cámaras para realizar una correlación de píxeles densa a lo largo de las líneas epipolares, generando mapas de profundidad detallados y fusionándolos en una **nube densa** final (en formato \texttt{.ply}).
+\end{enumerate}
+
+\subsubsection*{Análisis de Limitaciones Físicas y de Hardware}
+Durante el desarrollo del experimento utilizando un calzado como objeto de prueba, se detectaron dos limitaciones muy relevantes en visión artificial:
+\begin{itemize}
+    \item \textbf{Oclusión topológica y discontinuidad de cámara:} Un zapato exhibe caras totalmente ocluidas entre sí (el lateral interior y el exterior). Al fotografiarlo rotándolo sobre su propio eje, la punta y el talón actúan como "puentes" estrechos y complejos de texturizar. Si la tasa de disparo no es muy densa o se da un paso angular excesivo (superior a $20^{\circ}$), el estimador de SfM es incapaz de propagar las transformaciones proyectivas de manera coherente. Esto provoca que el grafo de cámaras se fragmente, arrojando **sub-modelos aislados** representados en carpetas numeradas (\texttt{0}, \texttt{1}, etc.) en lugar de un único modelo unificado.
+    \item \textbf{Restricciones de GPU y CUDA:} La etapa densa MVS (\texttt{patch\_match\_stereo}) requiere obligatoriamente hardware con soporte CUDA para paralelizar el volumen de coste espacial. Al ejecutar el pipeline localmente en arquitecturas CPU o sin tarjetas gráficas compatibles, el paso denso no se pudo realizar por hardware.
+\end{itemize}
+
+Para sortear la restricción de CUDA en local y poder documentar los resultados geométricos de la práctica, el pipeline se configuró de tal forma que capturase el error de hardware y aislara de manera segura la **reconstrucción dispersa (SfM)**. 
+
+\subsubsection*{COLMAP frente a NeRF y 3D Gaussian Splatting}
+La fotogrametría clásica basada en COLMAP reconstruye la geometría mediante primitivas explícitas discretas (nubes de puntos y mallas). Recientemente, la visión por computador ha evolucionado hacia los campos de radiación neural y representaciones continuas:
+\begin{itemize}
+    \item \textbf{NeRF (Neural Radiance Fields):} Modela la escena en 3D optimizando los pesos de un perceptrón multicapa (\texttt{MLP}) que mapea coordenadas 3D y direcciones de visualización a densidad de volumen y color emitido. Aunque logra un realismo fotográfico sobresaliente compensando reflejos especulares, sus tiempos de entrenamiento y renderizado son extremadamente altos.
+    \item \textbf{3DGS (3D Gaussian Splatting):} Representa la escena 3D como una colección densa de millones de elipsoides gaussianos tridimensionales con color y transparencia. Estos elipsoides se proyectan a la pantalla (\textit{splatting}) a gran velocidad, logrando tasas de renderizado en tiempo real a más de 100 FPS y tiempos de entrenamiento reducidos frente a NeRF, posicionándose como la tecnología de vanguardia actual en reconstrucción virtual interactiva.
+\end{itemize} 
+
+Esta nube de puntos dispersa (Figura \ref{fig:colmap_sparse}) contiene la información de autocalibración espacial (mostrando los conos de proyección de las 13 cámaras registradas en el grupo principal) y la silueta tridimensional del zapato con $2101$ puntos 3D de alta precisión geométrica.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc8/colmap.png}
+    \caption{Visualización en la interfaz gráfica de COLMAP del modelo 3D disperso (SfM) del calzado, destacando las 13 cámaras emparejadas con éxito rodeando la estructura del objeto.}
+    \label{fig:colmap_sparse}
+\end{figure}
+
+\subsubsection*{Entregables del Ejercicio}
+Para la evaluación de este opcional, se adjuntan en la entrega final:
+\begin{itemize}
+    \item El script automatizado \texttt{practica/opcionales/opc8\_colmap.py}.
+    \item El dataset de fotografías origen en la carpeta \texttt{practica/opcionales/fotos\_colmap/}.
+    \item Los archivos binarios del modelo disperso calculados (\texttt{cameras.bin}, \texttt{images.bin} y \texttt{points3D.bin}) ubicados en la ruta \texttt{practica/opcionales/modelo3d\_colmap/colmap\_model/sparse/0/}.
+\end{itemize}
+
+\end{document}

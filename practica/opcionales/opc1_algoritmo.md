@@ -13,7 +13,7 @@ El script `opc1_algoritmo.py` divide la pantalla en dos:
 - **Derecha**: La función `cv.Sobel()` y `cv.magnitude()` de OpenCV.
 
 ### Resultados y Conclusiones
-A pesar de haber vectorizado la operación en Numpy, el algoritmo en OpenCV es consistentemente más rápido (suele ejecutarse en ~1-2 ms, mientras que la versión vectorizada de Numpy tarda entre ~5-15 ms dependiendo de la resolución de la cámara).
+A pesar de haber vectorizado la operación en Numpy, el algoritmo nativo en OpenCV es consistentemente más rápido. Como se aprecia en la captura de resultados `captura_sobel.png`, la versión vectorizada matemática en Numpy se ejecuta a una media de **65 FPS (~11 ms)**, mientras que la solución de OpenCV triplica el rendimiento general alcanzando los **202 FPS (~5 ms)** a la misma resolución.
 
 **¿Por qué OpenCV es más rápido?**
 1. OpenCV está escrito en C/C++ y fuertemente optimizado para operaciones morfológicas, utilizando SIMD (Single Instruction Multiple Data) en el procesador.
