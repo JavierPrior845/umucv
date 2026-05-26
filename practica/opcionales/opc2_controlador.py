@@ -51,10 +51,8 @@ with mp_hands.Hands(
             detectado = True
             hand_landmarks = results.multi_hand_landmarks[0]
             
-            # Dibujar esqueleto de la mano (opcional, ayuda al feedback visual)
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            # Extraer coordenadas de la muñeca (0) y dedo corazón (12)
             wrist = hand_landmarks.landmark[0]
             middle_tip = hand_landmarks.landmark[12]
             
@@ -67,11 +65,9 @@ with mp_hands.Hands(
             p_index = (int(index_mcp.x * w), int(index_mcp.y * h))
             p_pinky = (int(pinky_mcp.x * w), int(pinky_mcp.y * h))
 
-            # 1. ROTACIÓN: Ángulo formado por el vector Muñeca -> Dedo corazón
             # Le sumamos 90 grados para que cuando la mano esté vertical, el ángulo sea 0.
             angulo_virtual = calcular_angulo(p_wrist, p_middle) + 90
 
-            # 2. ESCALA (Z-Depth aproximado): Inversamente proporcional a la distancia en la imagen.
             # Cuanto más cerca la mano de la cámara, mayor es la distancia en píxeles entre los nudillos.
             distancia_palma_px = calcular_distancia(p_index, p_pinky)
             # Normalizamos un poco la escala para que el cubo mida entre 50 y 300 px
@@ -83,17 +79,14 @@ with mp_hands.Hands(
             cv.line(frame, p_index, p_pinky, (0, 255, 0), 2)
 
 
-        # --- RENDERIZAR OBJETO VIRTUAL CONTROLADO ---
         # Posicionarlo en el centro de la pantalla
         cx, cy = w // 2, h // 2
         
         if detectado:
-            # Crear un cuadrado rotado
             rect = ((cx, cy), (escala_virtual, escala_virtual), angulo_virtual)
             box = cv.boxPoints(rect)
             box = np.int32(box)
             
-            # Dibujar polígono rotado y rellenado
             cv.drawContours(frame, [box], 0, (0, 150, 255), 2) # Borde
             
             # Poner texto informativo

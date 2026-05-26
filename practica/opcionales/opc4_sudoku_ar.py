@@ -6,7 +6,6 @@ import pytesseract
 from umucv.stream import autoStream
 from umucv.util import putText
 
-# --- SUDOKU SOLVER (BACKTRACKING) ---
 def is_valid(board, row, col, num):
     for x in range(9):
         if board[row][x] == num:
@@ -149,20 +148,17 @@ for key, frame in autoStream():
             putText(frame, "No se detecta rejilla (cuadrado)", (10, 30), color=(0, 0, 255))
 
     elif estado == "ESCANEO_OCR":
-        # 1. Hacer Transformacion de Perspectiva (Plano 2D Top-Down de 450x450 px)
         dim = 450
         pts_dst = np.array([[0, 0], [dim-1, 0], [dim-1, dim-1], [0, dim-1]], dtype="float32")
         M = cv.getPerspectiveTransform(esquinas_detectadas, pts_dst)
         warp = cv.warpPerspective(frame, M, (dim, dim))
         
-        # 2. Partir en 81 celdas y pasar OCR
         step = dim // 9
         print("Iniciando escaneo OCR. Esto puede tardar un poco...")
         sudoku_board = np.zeros((9, 9), dtype=int)
         
         for r in range(9):
             for c in range(9):
-                # Extraemos cada celda quitándole 8 píxeles de margen (borde de la rejilla grueso)
                 celda = warp[r*step+8:(r+1)*step-8, c*step+8:(c+1)*step-8]
                 num = extract_digit(celda)
                 sudoku_board[r][c] = num
@@ -170,7 +166,6 @@ for key, frame in autoStream():
         print("Tablero Escaneado (Ceros = Celdas Vacias):")
         print(sudoku_board)
         
-        # 3. Resolver
         sudoku_resuelto = sudoku_board.copy()
         if solve_sudoku(sudoku_resuelto):
             estado = "RESUELTO"
@@ -184,18 +179,14 @@ for key, frame in autoStream():
         if mejor_contorno is not None:
             esquinas = ordenar_puntos(mejor_contorno)
             
-            # Generar imagen holográfica en plano 2D
             dim = 450
             holograma = np.zeros((dim, dim, 3), dtype=np.uint8)
             step = dim // 9
             
-            # Pintar números
             for r in range(9):
                 for c in range(9):
-                    # Solo pintar los números que ha resuelto el bot, no los originales
                     if sudoku_board[r][c] == 0 and sudoku_resuelto[r][c] != 0:
                         num_txt = str(sudoku_resuelto[r][c])
-                        # Poner texto verde en el centro de la celda
                         cx = c * step + int(step * 0.3)
                         cy = r * step + int(step * 0.7)
                         cv.putText(holograma, num_txt, (cx, cy), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)

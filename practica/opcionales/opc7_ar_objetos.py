@@ -14,7 +14,6 @@ from umucv.stream import autoStream
 from umucv.util import putText
 from umucv.htrans import Pose, htrans, Kfov
 
-# --- ESTADO GLOBAL ---
 objetos_virtuales = []  # Lista de objetos: {'pos_mundo': (x,y), 'color': ..., 'radio_mundo': ...}
 mode = [0]             # 0: Círculos 2D con perspectiva, 1: Cubos 3D por pose
 
@@ -65,12 +64,10 @@ def detectar_tablero_ajedrez(frame, patron=(7, 5)):
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     gray_small = cv.resize(gray, (small_w, small_h))
     
-    # 1. Intentar detectar con la orientación original
     flags = cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_FAST_CHECK
     ret, corners = cv.findChessboardCorners(gray_small, patron, flags)
     active_patron = patron
     
-    # 2. Si falla, intentar en orientación transpuesta
     if not ret:
         patron_inv = (patron[1], patron[0])
         ret, corners = cv.findChessboardCorners(gray_small, patron_inv, flags)
@@ -165,7 +162,6 @@ def proyectar_cubo_3d(frame, pos_mundo, color, pose_cam, size_cube=0.8):
     cv.drawContours(frame, [pts_img[4:]], -1, (255, 255, 255), 1, cv.LINE_AA)
 
 
-# --- MAIN ---
 parser = argparse.ArgumentParser(description="AR - Objetos virtuales con ratón")
 parser.add_argument('--patron', type=str, default='7x5',
                     help="Tamaño del patrón de ajedrez (columnas x filas, default: 7x5)")
@@ -226,7 +222,6 @@ for key, frame in autoStream():
         pose_cam = Pose(K, img_pts, world_pts_pose)
         
         if pose_cam.rms < 5.0:  # Comprobamos que el error de reproyección sea aceptable
-            # 1. Dibujar los ejes coordenados en el origen del tablero (0, 0, 0)
             # Ejes de tamaño 2.0 unidades del tablero
             ejes_3d = np.array([
                 [0, 0, 0],
@@ -244,7 +239,6 @@ for key, frame in autoStream():
             cv.line(display, origin, ax_y, (0, 255, 0), 3, cv.LINE_AA)  # Y: Verde
             cv.line(display, origin, ax_z, (255, 0, 0), 3, cv.LINE_AA)  # Z: Azul
             
-            # 2. Dibujar recuadro verde cubriendo exactamente todo el tablero detectado
             esquinas_mundo = np.float32([
                 [0, 0, 0],
                 [cols_det - 1, 0, 0],
@@ -254,7 +248,6 @@ for key, frame in autoStream():
             esquinas_img = htrans(pose_cam.M, esquinas_mundo)
             cv.polylines(display, [np.int32(esquinas_img)], True, (0, 255, 0), 2, cv.LINE_AA)
             
-            # 3. Proyectar y dibujar los objetos guardados
             for obj in objetos_virtuales:
                 if mode[0] == 0:
                     proyectar_circulo_perspectiva(display, obj['pos_mundo'], obj['color'], obj['radio_mundo'], H_w2i)

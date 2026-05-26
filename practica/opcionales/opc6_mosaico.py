@@ -161,7 +161,6 @@ def main():
     
     print(f"Imágenes cargadas: {len(imagenes)}")
 
-    # --- MÉTODO MANUAL (Homografías) ---
     print("\n[1/2] Creando mosaico con Homografías manuales...")
     mosaico_manual = crear_mosaico_manual(imagenes)
     
@@ -173,7 +172,6 @@ def main():
     else:
         print("No se pudo crear el mosaico manual.")
 
-    # --- MÉTODO OPENCV Stitcher ---
     print("\n[2/2] Creando mosaico con cv.Stitcher (método nativo)...")
     stitcher = cv.Stitcher.create(cv.Stitcher_PANORAMA)
     status, mosaico_cv = stitcher.stitch(imagenes)

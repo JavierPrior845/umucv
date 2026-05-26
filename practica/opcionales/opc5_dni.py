@@ -5,9 +5,6 @@
 # USO:
 #   python opc5_dni.py --swap mi_foto.jpg
 #
-#   1. Pon el DNI visible y pulsa 'c' para capturar la referencia.
-#   2. Arrastra con el ratón el ROI sobre la foto del DNI (igual que en los otros ejercicios).
-#   3. Pulsa ENTER para activar la sustitución.
 
 import cv2 as cv
 import numpy as np

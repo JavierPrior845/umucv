@@ -12,7 +12,6 @@ from ultralytics import YOLO
 from umucv.stream import autoStream
 from umucv.util import ROI, putText, check_and_download, Video
 
-# --- CONFIGURACIÓN ---
 # Categorías de interés (COCO names)
 INTEREST_CATEGORIES = ['person', 'dog', 'cat', 'bicycle', 'motorcycle']
 # Umbral de confianza para YOLO
@@ -24,14 +23,12 @@ RECORD_SECONDS = 3
 # Buffer de frames anteriores al movimiento (para no perder el inicio)
 PRE_ROLL_SECONDS = 1
 
-# --- INICIALIZACIÓN YOLO ---
 print("Cargando modelo YOLO...")
 model = YOLO("yolo11n.pt")
 url_coco = "https://raw.githubusercontent.com/ultralytics/ultralytics/refs/heads/main/ultralytics/cfg/datasets/coco.yaml"
 check_and_download("coco.yaml", url_coco)
 labels = yaml.safe_load(open("coco.yaml"))['names']
 
-# --- TELEGRAM (Configura esto para que funcione) ---
 # Puedes usar un archivo .env o hardcodearlo para pruebas
 TELEGRAM_TOKEN = "8530334918:AAGM9pG7Ah2dhrwjrJDhS6UgIK7iXqDAx1Y"
 CHAT_ID = "5551685530"
@@ -57,7 +54,6 @@ def send_telegram_notification(message, photo_path=None):
     except Exception as e:
         print(f"Error enviando Telegram: {e}")
 
-# --- UTILIDADES ---
 def anonymize(frame, boxes):
     """Aplica un blur fuerte a las zonas de personas detectadas."""
     for (x1, y1, x2, y2) in boxes:
@@ -68,11 +64,12 @@ def anonymize(frame, boxes):
         
         roi = frame[y1:y2, x1:x2]
         if roi.size > 0:
-            # Pixelado rápido: reducir y ampliar o Blur
-            blur = cv.GaussianBlur(roi, (51, 51), 30)
+            # Dimensionamiento dinámico del kernel para evitar fallos con ROIs pequeñas
+            k = max(5, min(roi.shape[0], roi.shape[1]) // 2)
+            k = k if k % 2 == 1 else k + 1
+            blur = cv.GaussianBlur(roi, (k, k), 30)
             frame[y1:y2, x1:x2] = blur
 
-# --- BUCLE PRINCIPAL ---
 region = ROI("Vigilancia")
 bgsub = cv.createBackgroundSubtractorMOG2(500, 16, False)
 
@@ -114,7 +111,6 @@ for key, frame in autoStream():
             
             motion_score = np.sum(fgmask == 255)
             
-            # Mostrar máscara para debug
             cv.imshow("Mascara ROI", fgmask)
 
             # Lógica de disparo de evento
@@ -161,7 +157,6 @@ for key, frame in autoStream():
         save_frame = frame.copy()
         if people_boxes:
             anonymize(save_frame, people_boxes)
-            anonymize(display_frame, people_boxes) # También en pantalla para ver que funciona
 
         video_writer.write(save_frame)
         
@@ -179,7 +174,6 @@ for key, frame in autoStream():
                 send_telegram_notification(msg, snap_path)
             else:
                 print("Movimiento detectado pero no era ningún objeto de interés.")
-                # os.remove(video_filename)
 
     cv.imshow("Vigilancia", display_frame)
     if key == 27: break

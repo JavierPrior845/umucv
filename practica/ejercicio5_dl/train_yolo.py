@@ -13,11 +13,9 @@ def main():
         print(f"Error: No se encuentra el archivo {DATA_YAML}")
         return
 
-    # 1. Cargar el modelo base (YOLOv11n es el más ligero)
     print("Cargando modelo base YOLOv11 nano...")
     model = YOLO("yolo11n.pt")
 
-    # 2. Entrenar
     print(f"Iniciando entrenamiento por {EPOCHS} épocas...")
     results = model.train(
         data=DATA_YAML,

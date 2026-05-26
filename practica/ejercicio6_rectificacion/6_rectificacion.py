@@ -76,13 +76,11 @@ def main():
     parser.add_argument('--ref', required=True, help="Ruta al archivo TXT con las referencias")
     args = parser.parse_args()
 
-    # 1. Cargar imagen
     img_original = cv.imread(args.image)
     if img_original is None:
         print(f"No se pudo cargar la imagen: {args.image}")
         sys.exit(1)
 
-    # 2. Cargar puntos y calcular Homografia
     src_pts, dst_pts = cargar_referencias(args.ref)
     # findHomography es mas robusto que getPerspectiveTransform si hay > 4 puntos
     H, status = cv.findHomography(src_pts, dst_pts, cv.RANSAC)

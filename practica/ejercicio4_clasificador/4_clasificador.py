@@ -9,7 +9,6 @@ from umucv.util import putText
 import metodos
 
 def main():
-    # 1. Configuración de Argumentos
     parser = argparse.ArgumentParser(description="Clasificador de Imágenes Modular")
     sourceArgs(parser)
     parser.add_argument('--models', type=str, required=True, help="Carpeta de modelos")
@@ -17,7 +16,6 @@ def main():
                         help="Método de comparación")
     args, _ = parser.parse_known_args()
 
-    # 2. Inicializar el método seleccionado
     if args.method == 'sift':
         engine = metodos.MetodoSIFT()
     elif args.method == 'embedder':
@@ -25,7 +23,6 @@ def main():
     elif args.method == 'manos':
         engine = metodos.MetodoManos()
 
-    # 3. Cargar modelos existentes
     os.makedirs(args.models, exist_ok=True)
     modelos_db = {}
 
@@ -44,13 +41,11 @@ def main():
 
     cargar_modelos()
 
-    # 4. Bucle Principal
     print(f"\nCLASIFICADOR ACTIVO (Método: {args.method})")
     print("Capturando video... Pulsa 'c' para capturar el frame actual como NUEVO MODELO.")
     print("Pulsa 'q' o 'ESC' para salir.\n")
 
     for key, frame in autoStream():
-        # A. Capturar nuevo modelo
         if key == ord('c'):
             nombre = f"modelo_{len(modelos_db)}.png"
             path = os.path.join(args.models, nombre)
@@ -61,25 +56,21 @@ def main():
             if desc is not None:
                 modelos_db[nombre] = desc
 
-        # B. Procesar frame actual
         try:
             desc_frame = engine.procesar_frame(frame)
         except Exception as e:
             desc_frame = None
 
-        # C. Comparar con base de datos
         mejor_match = "Ninguino"
         mejor_score = float('inf')
 
         if desc_frame is not None:
             for nombre, desc_modelo in modelos_db.items():
                 score = engine.comparar(desc_frame, desc_modelo)
-                # print(f"Comparando con {nombre}: {score}")
                 if score < mejor_score:
                     mejor_score = score
                     mejor_match = nombre
 
-        # D. Visualización
         h, w = frame.shape[:2]
         # Umbrales heurísticos para mostrar texto de confianza
         confianza_visual = ""

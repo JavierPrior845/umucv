@@ -38,7 +38,9 @@
 % -----------------------------------------------------------------------
 \section{Introducción}
 % -----------------------------------------------------------------------
-En este documento se recoge la explicación de como se han resuelto los ejercicios correspondientes a la practica de la asignatura de visión artificial.
+En este documento presento la resolución detallada de los ejercicios correspondientes a la práctica de la asignatura de Visión Artificial. A lo largo de esta memoria, iré desglosando tanto las implementaciones obligatorias como algunas extensiones opcionales, abarcando desde conceptos fundamentales como la calibración de cámaras, la rectificación proyectiva y el flujo óptico, hasta arquitecturas más modernas de \textit{Deep Learning} como YOLOv11 y el análisis biométrico con MediaPipe.
+
+Mi objetivo con esta documentación no es solo mostrar que el código funciona, sino también dejar constancia del proceso de razonamiento, las matemáticas subyacentes, y las decisiones de diseño o limitaciones físicas y geométricas que me he ido encontrando al poner a prueba los algoritmos en entornos reales.
 \newpage
 
 % -----------------------------------------------------------------------
@@ -47,7 +49,7 @@ En este documento se recoge la explicación de como se han resuelto los ejercici
 \subsection{Calibración de la cámara}
 Comenzamos calibrando la cámara usando las instrucciones del README, para ello comenzando obteniendo las imagenes del tablero de ajedrez (situadas en el directorio ejercicio1\_calibracion/fotos\_calibracion), desde distintas distancias y angulos, esto se realizó usando el script code/stream.py, y guardando pulsando la tecla s.
 
-Una vez teniamos una cantidad de imagenes suficientes ejecutamos el calibrador (calibrate.py), esto calcula la matriz intrínseca K de la cámara, el error de aproximación (RMS) y la distorsión. Obtenemos: 
+Para el proceso se utilizó un tablero de ajedrez con cuadrados de tamaño estándar ($25\text{ mm}$ de lado), procesando un total de 15 capturas independientes. Una vez teniamos una cantidad de imagenes suficientes ejecutamos el calibrador (calibrate.py), esto calcula la matriz intrínseca K de la cámara, el error de aproximación (RMS) y la distorsión. Obtenemos: 
 \begin{itemize}
     \item \textbf{RMS:} \texttt{0.369}.
     \item \textbf{Matriz de cámara ($K$):}
@@ -131,7 +133,7 @@ Para validar la precisión de la matriz de calibración $K$, se utiliza el siste
         y_{\text{base}} = f_y \frac{H}{Z} + c_y
     \end{equation}
     \item \textbf{Interactividad:} Se implementaron controles deslizantes (\textit{sliders}) mediante la función \texttt{cv2.createTrackbar} de OpenCV, permitiendo ajustar los parámetros $Z$ (distancia) y $H$ (altura) en tiempo real.
-    \item \textbf{Procesamiento:} El script carga los parámetros intrínsecos desde el archivo \texttt{calib.txt} y dibuja las líneas de referencia sobre el flujo de vídeo utilizando \texttt{cv2.line}.
+    \item \textbf{Procesamiento:} El script carga los parámetros intrínsecos desde el archivo \texttt{calib.txt} y dibuja las líneas de referencia sobre el flujo de vídeo utilizando \texttt{cv2.line}. Cabe destacar que la proyección de estas líneas virtuales se realiza sobre el fotograma previamente rectificado (desdistorsionado mediante \texttt{cv2.undistort}), evitando que la precisión geométrica de la cuadrícula se degrade en las periferias debido a la distorsión en barril de la lente.
 \end{enumerate}
 
 Para ilustrar este procesamiento matemático computacional, el siguiente fragmento del script es el núcleo fundamental que proyecta una línea base virtual, calculando su posición en píxeles basándose en el modelo \textit{pinhole} y la altura de la cámara respecto al entorno:
@@ -169,7 +171,7 @@ Esta coincidencia precisa a lo largo de todo el eje horizontal demuestra el éxi
 % -----------------------------------------------------------------------
 \section{Ejercicio 2: Análisis de tráfico}
 % -----------------------------------------------------------------------
-Para ilustrar el funcionamiento del sistema de conteo, se presentan las siguientes capturas y análisis:
+Para ilustrar el funcionamiento del sistema de conteo, se presentan las capturas (Figura \ref{fig:tracking}) y análisis siguientes:
 
 \subsection{Detección y Seguimiento}
 
@@ -179,6 +181,8 @@ Durante la ejecución, el script levanta dos ventanas principales que nos permit
     \item \textbf{Máscara:} Expone el resultado binarizado tras aplicar el sustractor de fondo \texttt{MOG2} y el procesamiento morfológico. En esta ventana se observan los \textit{blobs} blancos que representan los vehículos en movimiento sobre un fondo negro.
     \item \textbf{Tráfico:} Muestra los \textit{bounding boxes} (rectángulos amarillos) que delimitan los vehículos identificados y un indicador visual cuando estos intersectan la línea de control. Asimismo, los contadores de flujo se actualizan dinámicamente en la interfaz.
 \end{itemize}
+
+Para resolver el problema de la correspondencia temporal de los centroides entre fotogramas secuenciales, el algoritmo asocia cada nueva detección con el \textit{track} histórico más cercano utilizando una asignación directa por distancia euclídea mínima. Adicionalmente, tras aplicar el sustractor MOG2, se emplea procesamiento morfológico secuencial (una operación de \textit{Opening} seguida de un \textit{Closing}) para eliminar ruido aislado y unificar la máscara de los vehículos, logrando \textit{bounding boxes} estables. 
 
 El fragmento de código fundamental responsable de la heurística temporal de este conteo es el siguiente, donde se asocia y compara la posición \texttt{Y} de un centroide en el \textit{frame} actual \texttt{cy} frente a su rastreo histórico en el frame anterior \texttt{vy}:
 
@@ -271,7 +275,10 @@ def anonymize(frame, boxes):
     for (x1, y1, x2, y2) in boxes:
         roi = frame[y1:y2, x1:x2]
         if roi.size > 0:
-            blur = cv.GaussianBlur(roi, (51, 51), 30)
+            # Dimensionamiento dinámico del kernel para evitar fallos con ROIs pequeñas
+            k = max(5, min(roi.shape[0], roi.shape[1]) // 2)
+            k = k if k % 2 == 1 else k + 1
+            blur = cv.GaussianBlur(roi, (k, k), 30)
             frame[y1:y2, x1:x2] = blur
 \end{verbatim}
 
@@ -320,7 +327,26 @@ El desarrollo se divide en dos módulos principales:
 \subsection*{2. Análisis de Métodos y Resultados}
 
 \subsubsection*{A) Heurística SIFT (Scale-Invariant Feature Transform)}
-Se basa en la localización de frecuencias espaciales y texturas intensas. Utiliza el \textit{Ratio Test de Lowe} para filtrar correspondencias erróneas. Es ideal para objetos planos con texturas ricas, presentando alta tolerancia a cambios de escala y rotación 2D.
+Se basa en la localización de frecuencias espaciales y texturas intensas. Para filtrar correspondencias erróneas de los descriptores locales, se implementa el \textit{Ratio Test de Lowe}. Matemáticamente, dado un descriptor del frame actual, se encuentran sus dos vecinos más cercanos en el modelo, $m_1$ y $m_2$, con distancias euclídeas $d(f, m_1)$ y $d(f, m_2)$. El emparejamiento se acepta como válido únicamente si la distancia al mejor candidato es significativamente menor que la del segundo, controlando la ambigüedad debida a patrones repetitivos:
+\begin{equation}
+    \frac{d(f, m_1)}{d(f, m_2)} < \tau \quad (\text{típicamente } \tau = 0.75)
+\end{equation}
+
+El fragmento de código fundamental que define esta heurística y el filtrado por ratio en el módulo \texttt{metodos.py} es:
+\begin{verbatim}
+# Encontrar los 2 vecinos más cercanos para el Ratio Test de Lowe
+matches = self.matcher.knnMatch(des_frame, des_modelo, k=2)
+good = []
+for m in matches:
+    if len(m) == 2:
+        best, second = m
+        if best.distance < 0.75 * second.distance:
+            good.append(best)
+# Retorna la similitud negativa (menor = más matches, mejor coincidencia)
+return -len(good)
+\end{verbatim}
+
+Es ideal para objetos planos con texturas ricas, presentando alta tolerancia a cambios de escala y rotación 2D.
 
 \begin{figure}[H]
     \centering
@@ -360,7 +386,21 @@ Se basa en la localización de frecuencias espaciales y texturas intensas. Utili
 \end{figure}
 
 \subsubsection*{B) MobileNet V3 Embedder (Inferencia Semántica)}
-Este método proyecta el \textit{frame} en un espacio de características latentes mediante una red neuronal profunda, evaluando la \textbf{Similitud del Coseno}. A diferencia de SIFT, comprende conceptos estructurales.
+Este método proyecta el \textit{frame} completo en un espacio de características latentes normalizadas de 1024 dimensiones mediante una red neuronal profunda ligera. El parecido entre los vectores resultantes $\mathbf{u}$ y $\mathbf{v}$ se evalúa mediante la \textbf{Similitud del Coseno}, que mide el coseno del ángulo entre ambos en el espacio multidimensional:
+\begin{equation}
+    \text{Similitud}_{\text{coseno}}(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\|_2 \|\mathbf{v}\|_2}
+\end{equation}
+
+Puesto que los embeddings se normalizan en la etapa final de la red óptica ($L_2$-norm de cada vector igual a $1$), la similitud se simplifica directamente al producto escalar binario $\mathbf{u} \cdot \mathbf{v}$. A nivel práctico, implementamos la distancia de coseno como $1 - \text{Similitud}$ para alinear el comportamiento con las demás métricas de error:
+\begin{verbatim}
+# Obtención y comparación del embedding semántico usando MediaPipe
+def comparar(self, emb_frame, emb_modelo):
+    # Similitud coseno en el espacio de características profundas
+    sim = vision.ImageEmbedder.cosine_similarity(emb_frame, emb_modelo)
+    return 1.0 - sim
+\end{verbatim}
+
+A diferencia de SIFT, comprende conceptos estructurales.
 
 \textbf{Limitación detectada:} Sensibilidad a la traslación global. Al evaluar la escena completa, cambios significativos en el \textit{background} afectan al vector resultante. Para mitigar esto, se propone en futuras iteraciones el uso de \textit{ROIs} o segmentación previa (YOLO/MOG2) para aislar el objeto.
 
@@ -385,7 +425,11 @@ Este avance algorítmico garantiza que el emparejamiento no sufra sesgos por la 
 
 \begin{verbatim}
 # --- Análisis de Procrustes (Alineación de Rotación) ---
-H = lm_frame.T @ lm_modelo  # Matriz de covarianza cruzada
+# Centrar las nubes de puntos en el origen para independizar de la traslación
+lm_frame_centrado = lm_frame - np.mean(lm_frame, axis=0)
+lm_modelo_centrado = lm_modelo - np.mean(lm_modelo, axis=0)
+
+H = lm_frame_centrado.T @ lm_modelo_centrado  # Matriz de covarianza cruzada
 
 # Descomposición SVD para obtener la rotación óptima R
 U, S, Vt = np.linalg.svd(H)
@@ -479,6 +523,30 @@ El entrenamiento de redes neuronales profundas para detección de objetos requie
 
 Durante el entrenamiento, estas pérdidas decrecen paulatinamente (como se expone en la sección siguiente), guiando la optimización de los pesos mediante descenso de gradiente estocástico.
 
+\subsection{Script de Entrenamiento e Inferencia}
+El entrenamiento se automatiza mediante un script de Python (\texttt{train\_yolo.py}) apoyado en el API oficial de \texttt{ultralytics}. El código carga el modelo base preentrenado, configura los hiperparámetros (como el tamaño de imagen a $640\times640$ píxeles y el aumento de datos activo) y ejecuta el proceso. Asimismo, una vez generado el archivo \texttt{best.pt}, la inferencia en vídeo o cámara en tiempo real se resuelve de manera inmediata llamando al método \texttt{predict}:
+
+\begin{verbatim}
+from ultralytics import YOLO
+
+# Cargar el modelo base YOLOv11 nano
+model = YOLO("yolo11n.pt")
+
+# Ejecutar el entrenamiento sobre CPU (o GPU indicando device=0)
+results = model.train(
+    data="data.yaml",
+    epochs=10,
+    imgsz=640,
+    device="cpu",
+    augment=True  # Habilitar aumentos aleatorios (brillo, rotación)
+)
+
+# Inferencia en tiempo real sobre el stream de video
+model_best = YOLO("runs/detect/train4/weights/best.pt")
+# Realiza la detección y dibuja las cajas sobre los frames
+results_inference = model_best.predict(source=0, conf=0.5, show=True)
+\end{verbatim}
+
 \subsection{Resultados del Entrenamiento}
 
 Se realizó una prueba de concepto con un entrenamiento de 10 épocas. A continuación se detallan los parámetros de rendimiento alcanzados:
@@ -488,6 +556,9 @@ Se realizó una prueba de concepto con un entrenamiento de 10 épocas. A continu
     \item \textbf{Eficiencia:} El modelo resultante (\texttt{best.pt}) tiene un peso de tan solo \textbf{5.4 MB}.
     \item \textbf{Velocidad de Inferencia:} En una CPU AMD Ryzen 7, el tiempo de inferencia medio es de \textbf{94.1 ms}, permitiendo una ejecución fluida a aproximadamente 10 FPS sin necesidad de GPU dedicada.
 \end{itemize}
+
+\subsubsection{Trabajo Futuro y Optimizaciones de Despliegue}
+De cara a un entorno de producción, la latencia de 94.1 ms podría reducirse significativamente exportando el modelo entrenado \texttt{.pt} a formatos optimizados para inferencia en CPU como \textbf{ONNX Runtime} o \textbf{OpenVINO}. Esto evitaría la sobrecarga de las librerías nativas de PyTorch y permitiría alcanzar latencias inferiores a 20 ms. Adicionalmente, cabe mencionar que el dataset personalizado capturado consta de 100 imágenes totales, aplicando un \textit{split} de entrenamiento y validación de 80/20.
 
 \subsubsection{Resumen de la Salida del Terminal}
 
@@ -608,6 +679,29 @@ El script principal de medición \texttt{6\_rectificacion.py} realiza los siguie
     Y dibuja de forma interactiva la línea de medición y el valor numérico en pantalla.
 \end{enumerate}
 
+A continuación se muestra la implementación matemática exacta para proyectar los puntos en perspectiva usando la homografía estimada:
+\begin{verbatim}
+def calcular_distancia_real(p1_img, p2_img, matriz_H):
+    """
+    Transforma dos puntos de la imagen al plano real usando H
+    y calcula la distancia euclídea entre ellos.
+    """
+    # Convertir a formato compatible con perspectiveTransform: [[[x, y]], [[x, y]]]
+    pts = np.array([[p1_img], [p2_img]], dtype=np.float32)
+    
+    # Proyectar al plano real utilizando la homografía
+    pts_reales = cv.perspectiveTransform(pts, matriz_H)
+    
+    # Extraer coordenadas resultantes en centímetros
+    rx1, ry1 = pts_reales[0][0]
+    rx2, ry2 = pts_reales[1][0]
+    
+    # Distancia Euclidiana
+    dist = math.sqrt((rx2 - rx1)**2 + (ry2 - ry1)**2)
+    return dist
+\end{verbatim}
+
+
 \subsection{Resultados y Análisis Experimental}
 
 Para validar el sistema experimentalmente, el usuario realiza una serie de capturas documentadas:
@@ -623,14 +717,14 @@ Para validar el sistema experimentalmente, el usuario realiza una serie de captu
     \centering
     \begin{minipage}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{imagenes/ejercicio6/ancho.png}
-        \caption{Medición del ancho ($5.4\text{ cm}$) del carnet.}
+        \includegraphics[width=\textwidth]{imagenes/ejercicio6/alto.png}
+        \caption{Medición del alto ($5.4\text{ cm}$) del carnet.}
         \label{fig:ancho_carnet}
     \end{minipage}
     \hfill
     \begin{minipage}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{imagenes/ejercicio6/alto.png}
+        \includegraphics[width=\textwidth]{imagenes/ejercicio6/ancho.png}
         \caption{Medición del largo ($8.5\text{ cm}$) del carnet.}
         \label{fig:alto_carnet}
     \end{minipage}
@@ -694,6 +788,8 @@ gy = (-1 * top_left) + (-2 * top_mid) + (-1 * top_right) + \
 magnitude = np.sqrt(gx**2 + gy**2)
 \end{verbatim}
 
+Cabe mencionar como efecto colateral de este \textit{slicing} puro la ausencia de estrategias de \textit{padding} en los márgenes de la imagen. A diferencia de \texttt{cv.Sobel} (que por defecto usa \texttt{BORDER\_DEFAULT} para replicar bordes), nuestra imagen final reduce su tamaño en 2 píxeles por cada eje (pasando de $640 \times 480$ a $638 \times 478$), una concesión aceptable en favor del alto rendimiento de vectorización.
+
 \subsubsection*{Análisis de Rendimiento Computacional (Benchmark)}
 El ejercicio contrasta simultáneamente la ejecución de nuestra solución vectorizada en Numpy frente a la implementación nativa \texttt{cv.Sobel} expuesta por la librería OpenCV, mostrando sus fotogramas por segundo (FPS) en pantalla.
 
@@ -728,6 +824,8 @@ distancia_palma_px = math.sqrt((p_pinky[0] - p_index[0])**2 +
                                (p_pinky[1] - p_index[1])**2)
 escala_virtual = max(20, min(400, int(distancia_palma_px * 2.5)))
 \end{verbatim}
+
+Es importante destacar una vulnerabilidad geométrica inherente a la métrica de profundidad empleada: si el usuario inclina la mano hacia adelante o hacia atrás (cambios de \textit{pitch} o \textit{yaw}), la proyección 2D de la palma se comprime. Esto engañaría al sistema, que interpretaría una falsa reducción de la escala aunque la distancia real en el eje $Z$ no haya variado, evidenciando el acoplamiento de grados de libertad al usar estimaciones puramente bidimensionales.
 
 La viabilidad del algoritmo se constata con un programa de demostración dinámica, donde el usuario controla en tiempo real la rotación explícita y el tamaño de renderizado de un polígono virtual en pantalla usando su mano flotante como un "volante volumétrico".
 
@@ -767,7 +865,7 @@ dot_product = (dx * vec_c_x + dy * vec_c_y) / norma_c # Expansión radial
 vel_angular = -mean_dx * fps * grados_per_pixel
 \end{verbatim}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{imagenes/opcionales/opc3/captura_egomotion.png}
     \caption{Interfaz telemétrica reportando el movimiento direccional global de la cámara y su velocidad de rotación angular en base al flujo óptico disperso.}
@@ -784,6 +882,59 @@ El \textit{pipeline} desarrollado consta de las siguientes fases críticas:
     \item \textbf{Extracción OCR y Preprocesamiento:} La rejilla aplanada se divide en 81 celdas. Dada la fragilidad inherente de la librería Tesseract ante caracteres individuales aislados, se implementó un flujo robusto de preprocesamiento: desenfoque previo para mitigar la textura del papel, umbralización adaptativa (\texttt{cv.adaptiveThreshold}) para garantizar inmunidad ante sombras irregulares, un escalado cúbico y la adición vital de un margen perimetral blanco (\textit{Quiet Zone}) para estabilizar las inferencias del motor OCR.
     \item \textbf{Motor Lógico y Proyección (AR):} La matriz digital inferida se transfiere a un algoritmo recursivo de \textit{Backtracking} que halla la solución unívoca del puzzle. Finalmente, los dígitos resueltos se renderizan en una máscara virtual y se devuelven a las coordenadas originales del mundo 3D manipulando la transformación de perspectiva inversa.
 \end{enumerate}
+
+Para asegurar la robustez en estas etapas, el código implementa las siguientes funciones clave en \texttt{opc4\_sudoku\_ar.py}. En primer lugar, la limpieza de celdas y la preparación del dígito para el motor Tesseract:
+\begin{verbatim}
+def extract_digit(cell_img):
+    gray = cv.cvtColor(cell_img, cv.COLOR_BGR2GRAY)
+    gray = cv.GaussianBlur(gray, (5, 5), 0)
+    
+    # Umbral adaptativo para robustez ante sombras
+    thresh = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                  cv.THRESH_BINARY_INV, 11, 2)
+    contours, _ = cv.findContours(thresh, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    if not contours: return 0
+    c = max(contours, key=cv.contourArea)
+    if cv.contourArea(c) < 30: return 0
+    
+    x, y, w, h = cv.boundingRect(c)
+    if w > 1.5 * h or h > 4 * w: return 0  # Descartar ruido lineal
+    roi = thresh[y:y+h, x:x+w]
+    if roi.size == 0: return 0
+    
+    # Escalar e introducir el margen blanco "Quiet Zone"
+    roi_inv = cv.bitwise_not(roi)
+    roi_inv = cv.resize(roi_inv, None, fx=3, fy=3, interpolation=cv.INTER_CUBIC)
+    roi_inv = cv.copyMakeBorder(roi_inv, 30, 30, 30, 30, cv.BORDER_CONSTANT, value=255)
+    roi_inv = cv.GaussianBlur(roi_inv, (3, 3), 0)
+    
+    # Configuración de Tesseract para dígito único en lista blanca 1-9
+    custom_config = r'--oem 3 --psm 10 -c tessedit_char_whitelist=123456789'
+    text = pytesseract.image_to_string(roi_inv, config=custom_config)
+    try:
+        num = int(text.strip())
+        if 1 <= num <= 9: return num
+    except:
+        pass
+    return 0
+\end{verbatim}
+
+Y el motor de búsqueda por fuerza bruta guiada (\textit{Backtracking}) para la resolución lógica de la matriz $9 \times 9$:
+\begin{verbatim}
+def solve_sudoku(board):
+    for i in range(9):
+        for j in range(9):
+            if board[i][j] == 0:
+                for num in range(1, 10):
+                    if is_valid(board, i, j, num):
+                        board[i][j] = num
+                        if solve_sudoku(board):
+                            return True
+                        board[i][j] = 0  # Revertir decisión (Backtrack)
+                return False
+    return True
+\end{verbatim}
+
 
 \subsubsection*{Análisis de Robustez y Limitaciones (El eslabón del OCR)}
 Durante las pruebas empíricas del entorno, la extracción OCR en bruto se erigió como el elemento más susceptible a fallos, provocando ocasionales falsos negativos (caracteres no leídos debido a recortes extremos, evaluados finalmente como \texttt{0}). A continuación se expone el volcado de inferencia de una de nuestras pruebas:
@@ -928,6 +1079,45 @@ El sistema implementa dos modos de visualización alternables en tiempo real med
     Los vértices se proyectan a la imagen y se dibujan tanto sus aristas como sus caras laterales mediante sombreado translúcido con mezcla alfa (\textit{alpha blending}), proporcionando una sensación de volumen y oclusión realista.
 \end{itemize}
 
+El fragmento crítico que muestra cómo se calcula e integra la estimación PnP de la pose y cómo se proyecta tridimensionalmente el cubo virtual sobre el frame es el siguiente:
+\begin{verbatim}
+# --- Estimación de la Pose 3D de la cámara usando PnP ---
+# world_pts_pose contiene coordenadas reales (c, r, 0)
+pose_cam = Pose(K, img_pts, world_pts_pose)
+
+# --- Renderizado Proyectivo del Cubo 3D ---
+def proyectar_cubo_3d(frame, pos_mundo, color, pose_cam, size_cube=0.8):
+    wx, wy = pos_mundo
+    s = size_cube / 2
+    
+    # Vértices del cubo (Z negativo va hacia arriba, saliendo del plano)
+    vertices = np.array([
+        [wx - s, wy - s, 0],          [wx + s, wy - s, 0],
+        [wx + s, wy + s, 0],          [wx - s, wy + s, 0],
+        [wx - s, wy - s, -size_cube], [wx + s, wy - s, -size_cube],
+        [wx + s, wy + s, -size_cube], [wx - s, wy + s, -size_cube]
+    ])
+    
+    # Proyectar vértices 3D a coordenadas de imagen (píxeles) usando pose_cam.M
+    pts_img = np.int32(htrans(pose_cam.M, vertices))
+    
+    # Renderizar caras translúcidas (Alpha Blending) para dar volumen
+    overlay = frame.copy()
+    cv.drawContours(overlay, [pts_img[:4]], -1, color, -1)  # Base
+    cv.drawContours(overlay, [pts_img[4:]], -1, color, -1)  # Tapa
+    for i in range(4):
+        cara = np.array([pts_img[i], pts_img[(i+1)%4], pts_img[(i+1)%4 + 4], pts_img[i+4]])
+        cv.drawContours(overlay, [cara], -1, color, -1)    # Laterales
+    cv.addWeighted(overlay, 0.20, frame, 0.80, 0, frame)
+    
+    # Dibujar líneas de aristas
+    cv.drawContours(frame, [pts_img[:4]], -1, color, 2, cv.LINE_AA)
+    cv.drawContours(frame, [pts_img[4:]], -1, color, 2, cv.LINE_AA)
+    for i in range(4):
+        cv.line(frame, tuple(pts_img[i]), tuple(pts_img[i+4]), color, 2, cv.LINE_AA)
+\end{verbatim}
+
+
 Para garantizar una experiencia premium, el sistema también proyecta de forma interactiva los ejes coordenados tridimensionales (rojo para X, verde para Y, azul para Z) en la esquina de origen $(0,0,0)$ del tablero y enmarca el contorno de todo el patrón detectado en verde.
 
 \subsubsection*{3. Optimizaciones de Rendimiento y Robustez}
@@ -980,6 +1170,7 @@ Durante el desarrollo del experimento utilizando un calzado como objeto de prueb
     \item \textbf{Restricciones de GPU y CUDA:} La etapa densa MVS (\texttt{patch\_match\_stereo}) requiere obligatoriamente hardware con soporte CUDA para paralelizar el volumen de coste espacial. Al ejecutar el pipeline localmente en arquitecturas CPU o sin tarjetas gráficas compatibles, el paso denso no se pudo realizar por hardware.
 \end{itemize}
 
+
 Para sortear la restricción de CUDA en local y poder documentar los resultados geométricos de la práctica, el pipeline se configuró de tal forma que capturase el error de hardware y aislara de manera segura la **reconstrucción dispersa (SfM)**. 
 
 \subsubsection*{COLMAP frente a NeRF y 3D Gaussian Splatting}
@@ -998,12 +1189,11 @@ Esta nube de puntos dispersa (Figura \ref{fig:colmap_sparse}) contiene la inform
     \label{fig:colmap_sparse}
 \end{figure}
 
-\subsubsection*{Entregables del Ejercicio}
-Para la evaluación de este opcional, se adjuntan en la entrega final:
-\begin{itemize}
-    \item El script automatizado \texttt{practica/opcionales/opc8\_colmap.py}.
-    \item El dataset de fotografías origen en la carpeta \texttt{practica/opcionales/fotos\_colmap/}.
-    \item Los archivos binarios del modelo disperso calculados (\texttt{cameras.bin}, \texttt{images.bin} y \texttt{points3D.bin}) ubicados en la ruta \texttt{practica/opcionales/modelo3d\_colmap/colmap\_model/sparse/0/}.
-\end{itemize}
+% -----------------------------------------------------------------------
+\section{Conclusiones}
+% -----------------------------------------------------------------------
+A modo de cierre, me gustaría comentar que la realización de esta práctica me ha parecido realmente interesante y muy enriquecedora. Tocar desde las bases matemáticas y geométricas más "clásicas" (como las homografías, los filtros espaciales o la calibración) hasta integrar modelos pre-entrenados modernos me ha dado una perspectiva muy completa de cómo ha evolucionado este campo.
+
+No obstante, a lo largo de los ejercicios, y especialmente al investigar para las partes de \textit{Deep Learning} y fotogrametría 3D, me he dado cuenta de que muchas de las tecnologías y enfoques que usamos actualmente son extremadamente cambiantes. Con el ritmo frenético de los avances en Inteligencia Artificial (especialmente con arquitecturas emergentes de reconstrucción continua y modelos fundacionales de visión), tengo la sensación de que las herramientas "estado del arte" de hoy pueden quedar obsoletas en cuestión de meses. Aun así, considero que haber podido asentar las bases matemáticas puras de la visión artificial mediante estos ejercicios es algo imprescindible para poder entender, dominar y adaptarme a cualquier tecnología futura que vaya surgiendo.
 
 \end{document}

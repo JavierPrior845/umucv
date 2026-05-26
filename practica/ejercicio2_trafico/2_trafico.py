@@ -7,19 +7,16 @@ from umucv.stream import autoStream
 from collections import defaultdict
 import time
 
-# Substractor de fondo
 bgsub = cv.createBackgroundSubtractorMOG2(history=500, varThreshold=25, detectShadows=True)
 
 # Parámetros para el conteo
 LINE_Y = 250   # Línea horizontal que usarán los coches para ser contados
 MIN_AREA = 300 # Área mínima para considerar que es un vehículo
 
-# Variables para seguimiento simple (centroides)
 # id_vehiculo -> (x, y)
 vehiculos_activos = {}
 siguiente_id = 0
 
-# Contadores
 conteo_bajada = 0
 conteo_subida = 0
 
@@ -38,20 +35,16 @@ for key, frame in autoStream():
     h, w = frame.shape[:2]
     frames += 1
     
-    # 1. Aplicamos sustracción de fondo
     fgmask = bgsub.apply(frame)
     
-    # 2. Eliminamos sombras (el MOG2 las marca con 127) y binarizamos
     _, fgmask = cv.threshold(fgmask, 200, 255, cv.THRESH_BINARY)
     
-    # 3. Operaciones morfológicas para rellenar huecos y quitar ruido
     kernel_erode = np.ones((3,3), np.uint8)
     kernel_dilate = np.ones((7,7), np.uint8)
     
     fgmask = cv.erode(fgmask, kernel_erode, iterations=1)
     fgmask = cv.dilate(fgmask, kernel_dilate, iterations=2)
     
-    # 4. Encontrar contornos
     contornos, _ = cv.findContours(fgmask, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
     
     centroides_actuales = []
@@ -67,7 +60,6 @@ for key, frame in autoStream():
             # Dibujar el rectángulo
             cv.rectangle(frame, (x, y), (x + w_box, y + h_box), (0, 255, 255), 2)
     
-    # 5. Tracking simple: asociar centroides actuales con los anteriores por proximidad
     nuevos_vehiculos = {}
     usados = set()
     
@@ -89,7 +81,6 @@ for key, frame in autoStream():
             nuevos_vehiculos[vid] = (cx, cy)
             usados.add(i)
             
-            # 6. Lógica de Conteo
             # Si el vehículo cruza la LÍNEA_Y
             # Bajada: Y anterior < LINE_Y y Y nuevo >= LINE_Y
             if vy < LINE_Y and cy >= LINE_Y:
@@ -109,7 +100,6 @@ for key, frame in autoStream():
             
     vehiculos_activos = nuevos_vehiculos
     
-    # 7. Interfaz gráfica
     cv.line(frame, (0, LINE_Y), (w, LINE_Y), (255, 0, 0), 2)
     
     cv.putText(frame, f"Bajada: {conteo_bajada}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
@@ -123,7 +113,6 @@ for key, frame in autoStream():
 
 cv.destroyAllWindows()
 
-# --- Generación de Gráficas ---
 if len(registro_eventos) > 0:
     print("Generando gráfica de tráfico...")
     t_inicial = registro_eventos[0][0]

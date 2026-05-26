@@ -60,7 +60,7 @@ El documento LaTeX está estructurado para enseñar un modelo original y una pru
   - [X] El archivo de referencias de tu tarjeta: `practica/ejercicio6_rectificacion/referencias.txt`
   - [X] La foto original de prueba: `practica/ejercicio6_rectificacion/20260521-194404.png` (o similar)
   - [X] **Vídeo de demostración (Recomendado)**: `practica/ejercicio6_rectificacion/demostracion_medicion.mp4` (o `.mkv`), mostrando el uso interactivo de la herramienta en tiempo real sobre la mesa.
-
+  
 ---
 
 ## Ejercicios Opcionales

@@ -6,7 +6,6 @@ import os
 from umucv.stream import autoStream
 from umucv.util import ROI, putText
 
-# --- CONFIGURACIÓN ---
 DATA_DIR = "train"
 IMG_DIR = os.path.join(DATA_DIR, "images")
 LBL_DIR = os.path.join(DATA_DIR, "labels")

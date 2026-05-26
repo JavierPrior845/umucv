@@ -6,7 +6,6 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from umucv.util import check_and_download
 
-# --- INTERFAZ BASE ---
 class MetodoClasificacion:
     def preprocesar_modelo(self, img):
         """Devuelve los descriptores o datos necesarios del modelo."""
@@ -20,7 +19,6 @@ class MetodoClasificacion:
         """Devuelve una medida de similitud o distancia (menor = más parecido)."""
         raise NotImplementedError
 
-# --- MÉTODO 1: SIFT ---
 class MetodoSIFT(MetodoClasificacion):
     def __init__(self):
         self.sift = cv.SIFT_create(nfeatures=500)
@@ -47,7 +45,6 @@ class MetodoSIFT(MetodoClasificacion):
         # Devolvemos el negativo del número de coincidencias porque a más coincidencias, mejor (menor "distancia")
         return -len(good)
 
-# --- MÉTODO 2: EMBEDDER (MediaPipe) ---
 class MetodoEmbedder(MetodoClasificacion):
     def __init__(self):
         model_path = 'embedder.tflite'
@@ -76,7 +73,6 @@ class MetodoEmbedder(MetodoClasificacion):
         sim = vision.ImageEmbedder.cosine_similarity(emb_frame, emb_modelo)
         return 1.0 - sim
 
-# --- MÉTODO 3: MANOS (Procrustes) ---
 class MetodoManos(MetodoClasificacion):
     def __init__(self):
         self.mp_hands = mp.solutions.hands
@@ -94,9 +90,7 @@ class MetodoManos(MetodoClasificacion):
         return None
 
     def _normalize(self, points):
-        # Centrar
         points = points - np.mean(points, axis=0)
-        # Escalar (Frobenius norm)
         norm = np.linalg.norm(points)
         if norm > 0:
             points /= norm
@@ -114,9 +108,12 @@ class MetodoManos(MetodoClasificacion):
         if lm_frame is None or lm_modelo is None:
             return float('inf')
             
-        # --- Análisis de Procrustes (Alineación de Rotación) ---
+        # Centrar las nubes de puntos en el origen para independizar de la traslación
+        lm_frame_centrado = lm_frame - np.mean(lm_frame, axis=0)
+        lm_modelo_centrado = lm_modelo - np.mean(lm_modelo, axis=0)
+
         # Calculamos la matriz de covarianza cruzada para encontrar la rotación óptima
-        H = lm_frame.T @ lm_modelo
+        H = lm_frame_centrado.T @ lm_modelo_centrado
         
         # Descomposición en Valores Singulares (SVD)
         U, S, Vt = np.linalg.svd(H)

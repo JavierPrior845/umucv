@@ -78,19 +78,16 @@ for key, frame in autoStream():
     if w > 800:
         frame = cv.resize(frame, (800, int(h * 800 / w)))
         
-    # --- PROCESO MANUAL ---
     t0 = time.time()
     res_manual = sobel_manual(frame)
     t1 = time.time()
     fps_manual = 1.0 / (t1 - t0) if (t1 - t0) > 0 else 999
 
-    # --- PROCESO OPENCV ---
     t2 = time.time()
     res_opencv = sobel_opencv(frame)
     t3 = time.time()
     fps_opencv = 1.0 / (t3 - t2) if (t3 - t2) > 0 else 999
 
-    # --- VISUALIZACIÓN ---
     # Convertir a BGR para poner texto en color
     res_manual_color = cv.cvtColor(res_manual, cv.COLOR_GRAY2BGR)
     res_opencv_color = cv.cvtColor(res_opencv, cv.COLOR_GRAY2BGR)
